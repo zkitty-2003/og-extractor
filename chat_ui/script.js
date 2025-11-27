@@ -1,4 +1,4 @@
-const API_URL = "https://og-extractor-zxkk.onrender.com/chat";
+const API_URL = "/chat";
 let API_KEY = localStorage.getItem("openrouter_api_key") || "";
 
 const chatContainer = document.getElementById('chat-container');

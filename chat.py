@@ -1,10 +1,31 @@
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import httpx
 from typing import Optional, List, Dict, Any
+import os
 
 app = FastAPI()
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows all origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
+)
+
+# Serve static files
+app.mount("/static", StaticFiles(directory="chat_ui"), name="static")
+
+@app.get("/")
+async def read_root():
+    return FileResponse('chat_ui/index.html')
+
 security = HTTPBearer()
 
 class ChatRequest(BaseModel):
