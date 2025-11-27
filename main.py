@@ -1,11 +1,3 @@
-from fastapi import FastAPI, HTTPException, Depends
-async def root():
-    return {
-        "message": "OG Extractor & Chat API is running",
-        "endpoints": ["/extract", "/chat", "/docs"]
-    }
-
-# ==============================
 # 1) OG Extractor
 # ==============================
 
