@@ -1,18 +1,4 @@
 from fastapi import FastAPI, HTTPException, Depends
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel, HttpUrl
-import httpx
-from bs4 import BeautifulSoup
-from typing import Optional, List, Dict
-
-app = FastAPI()
-security = HTTPBearer()
-
-# ==============================
-# 0) Root endpoint (กัน 404 เวลาเปิด "/")
-# ==============================
-
-@app.get("/")
 async def root():
     return {
         "message": "OG Extractor & Chat API is running",
@@ -120,3 +106,4 @@ async def chat_with_ai(
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+ 
