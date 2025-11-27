@@ -1,5 +1,7 @@
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, HttpUrl
 import httpx
 from bs4 import BeautifulSoup
@@ -18,15 +20,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Serve static files
+app.mount("/static", StaticFiles(directory="chat_ui"), name="static")
+
 @app.get("/")
 async def root():
     return {
         "message": "OG Extractor & Chat API is running",
-        "endpoints": ["/extract", "/chat", "/docs"]
+        "endpoints": ["/extract", "/chat", "/docs", "/ui"]
     }
 
-# 1) OG Extractor
-# ==============================
+@app.get("/ui")
+async def read_ui():
+    return FileResponse('chat_ui/index.html')
 
 class ExtractRequest(BaseModel):
     url: HttpUrl
@@ -125,4 +131,3 @@ async def chat_with_ai(
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
- 
