@@ -1,3 +1,30 @@
+from fastapi import FastAPI, HTTPException, Depends
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from pydantic import BaseModel, HttpUrl
+import httpx
+from bs4 import BeautifulSoup
+from typing import Optional, List, Dict
+from fastapi.middleware.cors import CORSMiddleware
+
+app = FastAPI()
+security = HTTPBearer()
+
+# Enable CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.get("/")
+async def root():
+    return {
+        "message": "OG Extractor & Chat API is running",
+        "endpoints": ["/extract", "/chat", "/docs"]
+    }
+
 # 1) OG Extractor
 # ==============================
 
