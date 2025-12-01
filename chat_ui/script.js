@@ -87,6 +87,7 @@ function handleCredentialResponse(response) {
 function updateUIForLogin() {
     if (currentUser) {
         document.getElementById('user-name').textContent = currentUser.name;
+        document.getElementById('user-email').textContent = currentUser.email;
         document.getElementById('user-avatar').src = currentUser.picture;
         userProfile.style.display = 'flex';
         gIdOnload.style.display = 'none';

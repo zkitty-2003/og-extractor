@@ -5,19 +5,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>ABDUL Chat</title>
-    <!DOCTYPE html>
-    <html lang="th">
-
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-        <title>ABDUL Chat</title>
-        <link rel="stylesheet" href="/static/style.css?v=6">
-        <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;700&display=swap"
-            rel="stylesheet">
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-        <script src="https://accounts.google.com/gsi/client" async defer></script>
-    </head>
+    <link rel="stylesheet" href="/static/style.css?v=6">
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
 
 <body>
     <div class="app-container">
@@ -40,11 +32,12 @@
                     <img id="user-avatar" src="" alt="Profile">
                     <div class="user-info">
                         <span id="user-name"></span>
+                        <span id="user-email" style="font-size: 0.8rem; color: #b9bbbe;"></span>
                     </div>
                     <i class="fas fa-sign-out-alt" id="logout-btn" title="Logout"></i>
                 </div>
 
-                <!-- Google Sign-In Button -->
+                <!-- Google Sign-In Button (No Logo) -->
                 <div id="g_id_onload"
                     data-client_id="888682176364-95k6bep0ajble7a48romjeui850dptg0.apps.googleusercontent.com"
                     data-callback="handleCredentialResponse" data-auto_prompt="false">
