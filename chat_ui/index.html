@@ -14,15 +14,31 @@
 <body>
     <!-- Header -->
     <div class="header">
-        <div id="user-profile" style="display: none; align-items: center; gap: 10px;">
-            <img id="user-avatar" src="" alt="Profile" style="width: 32px; height: 32px; border-radius: 50%;">
-            <span id="user-name" style="color: white; font-size: 0.9rem;"></span>
-            <i class="fas fa-sign-out-alt" id="logout-btn" style="cursor: pointer; color: #b9bbbe;" title="Logout"></i>
+        <div class="header-left">
+            <i class="fas fa-bars menu-icon"></i>
+            <span class="header-title">ABDUL Chat</span>
         </div>
+        <div class="header-right">
+            <!-- Google Sign-In Button -->
+            <div id="g_id_onload"
+                data-client_id="888682176364-95k6bep0ajble7a48romjeui850dptg0.apps.googleusercontent.com"
+                data-callback="handleCredentialResponse" data-auto_prompt="false">
+            </div>
+            <div class="g_id_signin" data-type="icon" data-shape="circle" data-theme="filled_black"
+                data-text="signin_with" data-size="large">
+            </div>
 
-        <!-- Settings icon to set API Key -->
-        <i class="fas fa-cog" id="settings-btn" style="margin-left: 15px;"></i>
-    </div>
+            <!-- User Profile (Hidden by default) -->
+            <div id="user-profile" style="display: none; align-items: center; gap: 10px;">
+                <img id="user-avatar" src="" alt="Profile" style="width: 32px; height: 32px; border-radius: 50%;">
+                <span id="user-name" style="color: white; font-size: 0.9rem;"></span>
+                <i class="fas fa-sign-out-alt" id="logout-btn" style="cursor: pointer; color: #b9bbbe;"
+                    title="Logout"></i>
+            </div>
+
+            <!-- Settings icon to set API Key -->
+            <i class="fas fa-cog" id="settings-btn" style="margin-left: 15px;"></i>
+        </div>
     </div>
 
     <!-- Chat Container -->
