@@ -35,6 +35,9 @@ saveApiKeyBtn.addEventListener('click', () => {
 });
 
 // Functions
+// Chat History
+let chatHistory = [];
+
 async function sendMessage() {
     const text = messageInput.value.trim();
     if (!text) return;
@@ -64,7 +67,7 @@ async function sendMessage() {
             body: JSON.stringify({
                 message: text,
                 model: "openai/gpt-3.5-turbo",
-                history: [] // You can implement history management here if needed
+                history: chatHistory // Send history
             })
         });
 
@@ -74,7 +77,12 @@ async function sendMessage() {
         removeMessage(loadingId);
 
         if (data.success) {
-            addMessage(data.data.message, 'ai');
+            const aiMsg = data.data.message;
+            addMessage(aiMsg, 'ai');
+
+            // Update History
+            chatHistory.push({ role: "user", content: text });
+            chatHistory.push({ role: "assistant", content: aiMsg });
         } else {
             addMessage("Error: " + (data.detail || "Something went wrong"), 'ai');
         }
