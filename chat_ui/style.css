@@ -91,58 +91,9 @@ body {
     align-self: flex-start;
 }
 
-.avatar {
-    width: 35px;
-    height: 35px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: bold;
-    flex-shrink: 0;
-    box-shadow: 0 2px 4px var(--shadow-color);
-}
-
-.ai-message .avatar {
-    background-color: #5865f2;
-    color: white;
-    margin-right: 10px;
-}
-
-.user-message .avatar {
-    display: none;
-}
-
-.bubble {
-    padding: 10px 15px;
-    border-radius: 8px;
-    font-size: 0.95rem;
-    line-height: 1.4;
-    word-wrap: break-word;
-    position: relative;
-    box-shadow: 0 1px 2px var(--shadow-color);
-}
-
-.ai-message .bubble {
-    background-color: var(--ai-bubble);
-    color: #dcddde;
-    border-top-left-radius: 0;
-}
-
-.user-message .bubble {
-    background-color: var(--user-bubble);
-    color: white;
-    border-top-right-radius: 0;
-}
-
-/* Input Area */
-.input-area {
-    background-color: var(--header-bg);
-    padding: 15px 20px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    box-shadow: 0 -2px 5px var(--shadow-color);
+align-items: center;
+gap: 10px;
+box-shadow: 0 -2px 5px var(--shadow-color);
 }
 
 #message-input {
