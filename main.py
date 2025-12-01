@@ -173,7 +173,7 @@ async def extract_og(data: ExtractRequest):
 
 class ChatRequest(BaseModel):
     message: str
-    model: Optional[str] = "google/gemma-3-27b-it"
+    model: Optional[str] = "google/gemma-3-27b-it:free"
     history: Optional[List[Dict[str, str]]] = None
 
 @app.post("/chat")
