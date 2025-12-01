@@ -36,7 +36,7 @@ saveApiKeyBtn.addEventListener('click', () => {
 
 // Functions
 // Chat History
-let chatHistory = [];
+let chatHistory = JSON.parse(localStorage.getItem("chat_history") || "[]");
 
 async function sendMessage() {
     const text = messageInput.value.trim();
@@ -83,6 +83,7 @@ async function sendMessage() {
             // Update History
             chatHistory.push({ role: "user", content: text });
             chatHistory.push({ role: "assistant", content: aiMsg });
+            localStorage.setItem("chat_history", JSON.stringify(chatHistory));
         } else {
             addMessage("Error: " + (data.detail || "Something went wrong"), 'ai');
         }
