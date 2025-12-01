@@ -1,3 +1,9 @@
+from fastapi import FastAPI, HTTPException, Depends
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from pydantic import BaseModel, HttpUrl
+import httpx
 from bs4 import BeautifulSoup
 from typing import Optional, List, Dict
 from fastapi.middleware.cors import CORSMiddleware
