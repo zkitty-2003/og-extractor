@@ -42,22 +42,7 @@ body {
     gap: 15px;
 }
 
-.menu-icon {
-    font-size: 1.2rem;
-    cursor: pointer;
-    color: #b9bbbe;
-}
-
-.header-title {
-    font-size: 1.2rem;
-    font-weight: 700;
-    color: #fff;
-}
-
-.header-right i {
-    color: #b9bbbe;
-    cursor: pointer;
-    transition: color 0.2s;
+transition: color 0.2s;
 }
 
 .header-right i:hover {
