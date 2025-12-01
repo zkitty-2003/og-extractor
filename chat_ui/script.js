@@ -112,7 +112,13 @@ function addLoadingMessage() {
     div.className = 'message ai-message';
     div.innerHTML = `
         <div class="avatar">A</div>
-        <div class="bubble">...</div>
+        <div class="bubble">
+            <div class="typing-indicator">
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+            </div>
+        </div>
     `;
     chatContainer.appendChild(div);
     return id;
@@ -124,7 +130,9 @@ function removeMessage(id) {
 }
 
 function scrollToBottom() {
-    chatContainer.scrollTop = chatContainer.scrollHeight;
+    setTimeout(() => {
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }, 50); // Small delay to ensure DOM is updated
 }
 
 function formatText(text) {
