@@ -204,28 +204,6 @@ async def chat_with_ai(
                 "https://openrouter.ai/api/v1/chat/completions",
                 headers={
                     "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                    "HTTP-Referer": "https://og-extractor-zxkk.onrender.com",
-                    "X-Title": "FastAPI Chat"
-                },
-                json={
-                    "model": request.model,
-                    "messages": messages
-                }
-            )
-            response.raise_for_status()
-
-            data = response.json()
-            ai_msg = data["choices"][0]["message"]["content"]
-
-            return {
-                "success": True,
-                "data": {
-        "message": ai_msg,
-                    "raw": data
-                }
-            }
-
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

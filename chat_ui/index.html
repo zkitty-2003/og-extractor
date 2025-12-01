@@ -1,13 +1,4 @@
 <!DOCTYPE html>
-<!DOCTYPE html>
-<!DOCTYPE html>
-<!DOCTYPE html>
-<!DOCTYPE html>
-<!DOCTYPE html>
-<!DOCTYPE html>
-<!DOCTYPE html>
-<!DOCTYPE html>
-<!DOCTYPE html>
 <html lang="th">
 
 <head>
@@ -17,19 +8,21 @@
     <link rel="stylesheet" href="/static/style.css?v=6">
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 
 <body>
     <!-- Header -->
     <div class="header">
-        <div class="header-left">
-            <i class="fas fa-bars menu-icon"></i>
-            <span class="header-title">ABDUL Chat</span>
+        <div id="user-profile" style="display: none; align-items: center; gap: 10px;">
+            <img id="user-avatar" src="" alt="Profile" style="width: 32px; height: 32px; border-radius: 50%;">
+            <span id="user-name" style="color: white; font-size: 0.9rem;"></span>
+            <i class="fas fa-sign-out-alt" id="logout-btn" style="cursor: pointer; color: #b9bbbe;" title="Logout"></i>
         </div>
-        <div class="header-right">
-            <!-- Settings icon to set API Key -->
-            <i class="fas fa-cog" id="settings-btn"></i>
-        </div>
+
+        <!-- Settings icon to set API Key -->
+        <i class="fas fa-cog" id="settings-btn" style="margin-left: 15px;"></i>
+    </div>
     </div>
 
     <!-- Chat Container -->
@@ -61,7 +54,7 @@
         </div>
     </div>
 
-    <script src="/static/script.js?v=10"></script>
+    <script src="/static/script.js?v=11"></script>
 </body>
 
 </html>

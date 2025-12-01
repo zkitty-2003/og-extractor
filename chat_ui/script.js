@@ -35,6 +35,56 @@ saveApiKeyBtn.addEventListener('click', () => {
 });
 
 // Functions
+// Google Login
+function handleCredentialResponse(response) {
+    // Send JWT to backend
+    fetch('/auth/google', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ token: response.credential })
+    })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                // Login Success
+                localStorage.setItem("user_info", JSON.stringify(data.user));
+                updateUI(data.user);
+            }
+        })
+        .catch(console.error);
+}
+
+function updateUI(user) {
+    if (user) {
+        // Hide Sign-In button, Show Profile
+        document.querySelector('.g_id_signin').style.display = 'none';
+        const profile = document.getElementById('user-profile');
+        profile.style.display = 'flex';
+        document.getElementById('user-avatar').src = user.picture;
+        document.getElementById('user-name').textContent = user.name;
+    } else {
+        // Show Sign-In button, Hide Profile
+        document.querySelector('.g_id_signin').style.display = 'block';
+        document.getElementById('user-profile').style.display = 'none';
+    }
+}
+
+// Check login status on load
+const savedUser = localStorage.getItem("user_info");
+if (savedUser) {
+    updateUI(JSON.parse(savedUser));
+}
+
+// Logout
+document.getElementById('logout-btn')?.addEventListener('click', () => {
+    localStorage.removeItem("user_info");
+    updateUI(null);
+    // Reload to reset Google button state if needed
+    window.location.reload();
+});
+
 // Chat History
 let chatHistory = JSON.parse(localStorage.getItem("chat_history") || "[]");
 

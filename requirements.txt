@@ -4,3 +4,5 @@ httpx
 beautifulsoup4
 pytest
 aiofiles
+google-auth
+requests
