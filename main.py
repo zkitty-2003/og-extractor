@@ -92,19 +92,6 @@ class ChatRequest(BaseModel):
 
 @app.post("/chat")
 async def chat_with_ai(
-    request: ChatRequest,
-    creds: HTTPAuthorizationCredentials = Depends(security)
-):
-    # เอา API key จาก header Authorization (ปุ่ม Authorize ใน /docs)
-    api_key = creds.credentials
-
-    messages = request.history or []
-    messages.append({"role": "user", "content": request.message})
-
-    try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            response = await client.post(
-                "https://openrouter.ai/api/v1/chat/completions",
                 headers={
                     "Authorization": f"Bearer {api_key}",
                     "Content-Type": "application/json",
