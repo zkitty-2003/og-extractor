@@ -286,7 +286,7 @@ function renderHistoryList(history) {
         item.innerHTML = `
             <span class="title">${escapeHtml(session.title)}</span>
             <i class="fas fa-ellipsis-h menu-btn" onclick="toggleHistoryMenu(event, '${session.id}')"></i>
-            <div id="menu-${session.id}" class="history-menu">
+            <div id="menu-${session.id}" class="history-menu" style="display: none;">
                 <div class="menu-item" onclick="renameChat('${session.id}')">
                     <i class="fas fa-edit"></i> Rename
                 </div>
@@ -309,7 +309,7 @@ function renderHistoryList(history) {
 document.addEventListener('click', (e) => {
     if (!e.target.closest('.menu-btn') && !e.target.closest('.history-menu')) {
         document.querySelectorAll('.history-menu').forEach(menu => {
-            menu.classList.remove('show');
+            menu.style.display = 'none';
             // Remove active class from buttons
             const btn = menu.previousElementSibling;
             if (btn && btn.classList.contains('menu-btn')) {
@@ -324,7 +324,7 @@ function toggleHistoryMenu(event, chatId) {
     // Close other menus
     document.querySelectorAll('.history-menu').forEach(menu => {
         if (menu.id !== `menu-${chatId}`) {
-            menu.classList.remove('show');
+            menu.style.display = 'none';
             const btn = menu.previousElementSibling;
             if (btn) btn.classList.remove('active');
         }
@@ -334,8 +334,13 @@ function toggleHistoryMenu(event, chatId) {
     const btn = event.target;
 
     if (menu) {
-        menu.classList.toggle('show');
-        btn.classList.toggle('active');
+        if (menu.style.display === 'block') {
+            menu.style.display = 'none';
+            btn.classList.remove('active');
+        } else {
+            menu.style.display = 'block';
+            btn.classList.add('active');
+        }
     }
 }
 
