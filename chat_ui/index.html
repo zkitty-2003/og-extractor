@@ -16,25 +16,38 @@
         <!-- Sidebar -->
         <div class="sidebar" id="sidebar">
             <div class="sidebar-top">
-                <button id="new-chat-btn" class="new-chat-btn">
-                    <i class="fas fa-plus"></i> New chat
-                </button>
+                <div class="new-chat-btn">
+                    <button id="new-chat-btn">
+                        <i class="fas fa-plus"></i> New chat
+                    </button>
+                </div>
                 <div class="history-list" id="history-list">
                     <!-- History items will be added here -->
-                    <div class="history-item">Previous Chat 1</div>
-                    <div class="history-item">Previous Chat 2</div>
+                    <div class="history-item">
+                        <span class="title">เราชื่อส้ม</span>
+                    </div>
+                    <div class="history-item">
+                        <span class="title">วันนี้สภาพอากาศเป็นยังไง</span>
+                    </div>
+                    <div class="history-item">
+                        <span class="title">สวัสดีจ้า</span>
+                    </div>
                 </div>
             </div>
 
             <div class="sidebar-bottom">
                 <!-- User Profile / Login -->
-                <div id="user-profile" style="display: none;">
-                    <img id="user-avatar" src="" alt="Profile">
+                <div id="user-profile" class="user-profile" style="display: none;">
+                    <div class="avatar" id="user-avatar-container">
+                        <img id="user-avatar" src="" alt="Profile"
+                            style="width: 100%; height: 100%; border-radius: 2px;">
+                    </div>
                     <div class="user-info">
                         <span id="user-name"></span>
                         <span id="user-email" style="font-size: 0.8rem; color: #b9bbbe;"></span>
                     </div>
-                    <i class="fas fa-sign-out-alt" id="logout-btn" title="Logout"></i>
+                    <i class="fas fa-sign-out-alt" id="logout-btn" title="Logout"
+                        style="margin-left: auto; cursor: pointer;"></i>
                 </div>
 
                 <!-- Custom Login Button -->
@@ -63,17 +76,21 @@
                 <div class="message ai-message">
                     <div class="avatar">A</div>
                     <div class="bubble">
-                        สวัสดีครับ มีอะไรให้พี่ช่วยไหม
+                        <div class="content">
+                            สวัสดีครับ มีอะไรให้พี่ช่วยไหม
+                        </div>
                     </div>
                 </div>
             </div>
 
             <!-- Input Area -->
             <div class="input-area">
-                <input type="text" id="message-input" placeholder="Send a message..." autocomplete="off">
-                <button id="send-btn">
-                    <i class="fas fa-paper-plane"></i>
-                </button>
+                <div class="input-wrapper">
+                    <textarea id="message-input" placeholder="Send a message..." rows="1"></textarea>
+                    <button id="send-btn">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
                 <div class="disclaimer">ABDUL Chat may produce inaccurate information.</div>
             </div>
         </div>

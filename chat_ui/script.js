@@ -25,9 +25,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Event Listeners
+    // Event Listeners
     sendBtn.addEventListener('click', sendMessage);
     messageInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') sendMessage();
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+
+    // Auto-resize textarea
+    messageInput.addEventListener('input', function () {
+        this.style.height = 'auto';
+        this.style.height = (this.scrollHeight) + 'px';
+        if (this.value === '') {
+            this.style.height = 'auto';
+        }
     });
 
     settingsBtn.addEventListener('click', () => {
