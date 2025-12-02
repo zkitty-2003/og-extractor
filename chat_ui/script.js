@@ -4,9 +4,7 @@ let chatHistory = [];
 let apiKey = localStorage.getItem('openrouter_api_key') || '';
 
 // Initialize
-function init() {
-    console.log("Initializing Chat UI...");
-
+document.addEventListener('DOMContentLoaded', () => {
     // DOM Elements
     const messageInput = document.getElementById('message-input');
     const sendBtn = document.getElementById('send-btn');
@@ -20,8 +18,6 @@ function init() {
     const newChatBtn = document.getElementById('new-chat-btn');
     const userProfile = document.getElementById('user-profile');
     const loginBtn = document.getElementById('login-btn');
-
-    console.log("Login Button Element:", loginBtn);
 
     // Load saved API key
     if (apiKey) {
@@ -110,8 +106,6 @@ function init() {
                 console.error("Error rendering Google button:", error);
             }
         });
-    } else {
-        console.error("Login button NOT found in DOM");
     }
 
     // Back to Chat handler
@@ -125,21 +119,12 @@ function init() {
     // Logout handler
     const logoutBtn = document.getElementById('logout-btn');
     if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
-}
-
-// Check if DOM is already loaded
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-} else {
-    init();
-}
+});
 
 // Google Sign-In Callback
 function handleCredentialResponse(response) {
-    console.log("handleCredentialResponse called", response);
     if (response.credential) {
         // Send token to backend
-        console.log("Sending token to backend...");
         fetch('/auth/google', {
             method: 'POST',
             headers: {
@@ -147,19 +132,12 @@ function handleCredentialResponse(response) {
             },
             body: JSON.stringify({ token: response.credential })
         })
-            .then(res => {
-                console.log("Backend response status:", res.status);
-                return res.json();
-            })
+            .then(res => res.json())
             .then(data => {
-                console.log("Backend data:", data);
                 if (data.success) {
-                    console.log("Login successful, updating UI...");
                     currentUser = data.user;
                     updateUIForLogin();
                     // Keep overlay open to show profile view
-                } else {
-                    console.error("Login failed:", data);
                 }
             })
             .catch(err => console.error('Login error:', err));
@@ -167,7 +145,6 @@ function handleCredentialResponse(response) {
 }
 
 function updateUIForLogin() {
-    console.log("updateUIForLogin called", currentUser);
     if (currentUser) {
         // Update Sidebar Profile
         document.getElementById('user-name').textContent = currentUser.name;
@@ -180,7 +157,6 @@ function updateUIForLogin() {
 
         // Update Overlay Content to Profile View
         const loginContent = document.querySelector('.login-content');
-        console.log("Found loginContent:", loginContent);
         if (loginContent) {
             loginContent.innerHTML = `
                 <h1>User Profile</h1>
