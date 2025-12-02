@@ -82,8 +82,7 @@ body {
     cursor: pointer;
     border-radius: 5px;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    /* overflow: hidden; Removed to allow menu to show */
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -98,7 +97,10 @@ body {
 .history-item .title {
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
+    /* Ensure title still truncates */
     flex: 1;
+    margin-right: 5px;
 }
 
 .sidebar-bottom {
