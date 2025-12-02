@@ -1,191 +1,127 @@
 <!DOCTYPE html>
 <html lang="th">
 
-<div class="sidebar" id="sidebar">
-    <div class="sidebar-top">
-        <div class="new-chat-btn">
-            <button id="new-chat-btn">
-                <i class="fas fa-plus"></i> New chat
-            </button>
-        </div>
-        <div class="history-list" id="history-list">
-            <!-- History items will be added here -->
-            <div class="history-item">
-                <span class="title">เราชื่อส้ม</span>
-            </div>
-            <div class="history-item">
-                <span class="title">วันนี้สภาพอากาศเป็นยังไง</span>
-            </div>
-            <div class="history-item">
-                <span class="title">สวัสดีจ้า</span>
-            </div>
-        </div>
-    </div>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ABDUL Chat</title>
+    <link rel="stylesheet" href="/static/style.css?v=6">
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
 
-    <div class="sidebar-bottom">
-        <!-- User Profile / Login -->
-        <div id="user-profile" class="user-profile" style="display: none;">
-            <div class="avatar" id="user-avatar-container">
-                <img id="user-avatar" src="" alt="Profile" style="width: 100%; height: 100%; border-radius: 2px;">
-            </div>
-            <div class="user-info">
-                <span id="user-name"></span>
-                <span id="user-email" style="font-size: 0.8rem; color: #b9bbbe;"></span>
-            </div>
-            <i class="fas fa-sign-out-alt" id="logout-btn" title="Logout"
-                style="margin-left: auto; cursor: pointer;"></i>
-        </div>
-
-        <!-- Custom Login Button -->
-        <button id="login-btn" class="login-btn">
-            <i class="fas fa-user"></i> Log In
-        </button>
-
-        <!-- Settings -->
-        <div class="settings-item" id="settings-btn">
-            <i class="fas fa-cog"></i> Settings
-        </div>
-    </div>
-</div>
-
-<!-- Main Content -->
-<div class="main-content">
-    <!-- Mobile Header -->
-    <div class="mobile-header">
-        <i class="fas fa-bars" id="mobile-menu-btn"></i>
-        <span>ABDUL Chat</span>
-    </div>
-
-    <!-- Chat Container -->
-    <div class="chat-container" id="chat-container">
-        <!-- Welcome Message -->
-        <div class="message ai-message">
-            <div class="avatar">A</div>
-            <div class="bubble">
-                <div class="content">
-                    สวัสดีครับ มีอะไรให้พี่ช่วยไหม
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Input Area -->
-    <div class="input-area">
-        <div class="input-wrapper">
-            <textarea id="message-input" placeholder="Send a message..." rows="1"></textarea>
-            <button id="send-btn">
-                <i class="fas fa-paper-plane"></i>
-            </button>
-            <!DOCTYPE html>
-            <html lang="th">
-
-            <div class="sidebar" id="sidebar">
-                <div class="sidebar-top">
-                    <div class="new-chat-btn">
-                        <button id="new-chat-btn">
-                            <i class="fas fa-plus"></i> New chat
-                        </button>
-                    </div>
-                    <div class="history-list" id="history-list">
-                        <!-- History items will be added here -->
-                        <div class="history-item">
-                            <span class="title">เราชื่อส้ม</span>
-                        </div>
-                        <div class="history-item">
-                            <span class="title">วันนี้สภาพอากาศเป็นยังไง</span>
-                        </div>
-                        <div class="history-item">
-                            <span class="title">สวัสดีจ้า</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="sidebar-bottom">
-                    <!-- User Profile / Login -->
-                    <div id="user-profile" class="user-profile" style="display: none;">
-                        <div class="avatar" id="user-avatar-container">
-                            <img id="user-avatar" src="" alt="Profile"
-                                style="width: 100%; height: 100%; border-radius: 2px;">
-                        </div>
-                        <div class="user-info">
-                            <span id="user-name"></span>
-                            <span id="user-email" style="font-size: 0.8rem; color: #b9bbbe;"></span>
-                        </div>
-                        <i class="fas fa-sign-out-alt" id="logout-btn" title="Logout"
-                            style="margin-left: auto; cursor: pointer;"></i>
-                    </div>
-
-                    <!-- Custom Login Button -->
-                    <button id="login-btn" class="login-btn">
-                        <i class="fas fa-user"></i> Log In
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-top">
+                <div class="new-chat-btn">
+                    <button id="new-chat-btn">
+                        <i class="fas fa-plus"></i> New chat
                     </button>
-
-                    <!-- Settings -->
-                    <div class="settings-item" id="settings-btn">
-                        <i class="fas fa-cog"></i> Settings
+                </div>
+                <div class="history-list" id="history-list">
+                    <!-- History items will be added here -->
+                    <div class="history-item">
+                        <span class="title">เราชื่อส้ม</span>
+                    </div>
+                    <div class="history-item">
+                        <span class="title">วันนี้สภาพอากาศเป็นยังไง</span>
+                    </div>
+                    <div class="history-item">
+                        <span class="title">สวัสดีจ้า</span>
                     </div>
                 </div>
             </div>
 
-            <!-- Main Content -->
-            <div class="main-content">
-                <!-- Mobile Header -->
-                <div class="mobile-header">
-                    <i class="fas fa-bars" id="mobile-menu-btn"></i>
-                    <span>ABDUL Chat</span>
+            <div class="sidebar-bottom">
+                <!-- User Profile / Login -->
+                <div id="user-profile" class="user-profile" style="display: none;">
+                    <div class="avatar" id="user-avatar-container">
+                        <img id="user-avatar" src="" alt="Profile"
+                            style="width: 100%; height: 100%; border-radius: 2px;">
+                    </div>
+                    <div class="user-info">
+                        <span id="user-name"></span>
+                        <span id="user-email" style="font-size: 0.8rem; color: #b9bbbe;"></span>
+                    </div>
+                    <i class="fas fa-sign-out-alt" id="logout-btn" title="Logout"
+                        style="margin-left: auto; cursor: pointer;"></i>
                 </div>
 
-                <!-- Chat Container -->
-                <div class="chat-container" id="chat-container">
-                    <!-- Welcome Message -->
-                    <div class="message ai-message">
-                        <div class="avatar">A</div>
-                        <div class="bubble">
-                            <div class="content">
-                                สวัสดีครับ มีอะไรให้พี่ช่วยไหม
-                            </div>
+                <!-- Custom Login Button -->
+                <button id="login-btn" class="login-btn">
+                    <i class="fas fa-user"></i> Log In
+                </button>
+
+                <!-- Settings -->
+                <div class="settings-item" id="settings-btn">
+                    <i class="fas fa-cog"></i> Settings
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Mobile Header -->
+            <div class="mobile-header">
+                <i class="fas fa-bars" id="mobile-menu-btn"></i>
+                <span>ABDUL Chat</span>
+            </div>
+
+            <!-- Chat Container -->
+            <div class="chat-container" id="chat-container">
+                <!-- Welcome Message -->
+                <div class="message ai-message">
+                    <div class="avatar">A</div>
+                    <div class="bubble">
+                        <div class="content">
+                            สวัสดีครับ มีอะไรให้พี่ช่วยไหม
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <!-- Input Area -->
-                <div class="input-area">
-                    <div class="input-wrapper">
-                        <textarea id="message-input" placeholder="Send a message..." rows="1"></textarea>
-                        <button id="send-btn">
-                            <i class="fas fa-paper-plane"></i>
-                        </button>
-                    </div>
-                    <div class="disclaimer">ABDUL Chat may produce inaccurate information.</div>
+            <!-- Input Area -->
+            <div class="input-area">
+                <div class="input-wrapper">
+                    <textarea id="message-input" placeholder="Send a message..." rows="1"></textarea>
+                    <button id="send-btn">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
                 </div>
+                <div class="disclaimer">ABDUL Chat may produce inaccurate information.</div>
             </div>
         </div>
+    </div>
 
-        <!-- API Key Modal -->
-        <div id="api-key-modal" class="modal">
-            <div class="modal-content">
-                <h3>ตั้งค่า API Key</h3>
-                <p>กรุณาใส่ OpenRouter API Key ของคุณ</p>
-                <input type="password" id="api-key-input" placeholder="sk-or-v1-...">
-                <button id="save-api-key">บันทึก</button>
-            </div>
+    <!-- API Key Modal -->
+    <div id="api-key-modal" class="modal">
+        <div class="modal-content">
+            <h3>ตั้งค่า API Key</h3>
+            <p>กรุณาใส่ OpenRouter API Key ของคุณ</p>
+            <input type="password" id="api-key-input" placeholder="sk-or-v1-...">
+            <button id="save-api-key">บันทึก</button>
         </div>
+    </div>
 
-        <!-- Login Overlay -->
-        <div id="login-overlay" class="login-overlay" style="display: none;">
-            <div class="login-header">
-                <button id="back-to-chat-btn">
-                    <i class="fas fa-arrow-left"></i> Back to Chat
-                </button>
-            </div>
-            <div class="login-content">
-                <h1>User Profile</h1>
-                <p>Sign in to your account to save your chat history.</p>
-                <div id="google-login-container"></div>
-            </div>
+    <!-- Login Overlay -->
+    <div id="login-overlay" class="login-overlay" style="display: none;">
+        <div class="login-header">
+            <button id="back-to-chat-btn">
+                <i class="fas fa-arrow-left"></i> Back to Chat
+            </button>
         </div>
+        <div class="login-content">
+            <h1>User Profile</h1>
+            <p>Sign in to your account to save your chat history.</p>
+            <div id="google-login-container"></div>
+        </div>
+    </div>
 
-        <script src="/static/script.js?v=12"></script>
-        </body>
+    <script src="/static/script.js?v=12"></script>
+</body>
 
 </html>
