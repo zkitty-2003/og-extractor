@@ -233,6 +233,40 @@ async def google_login(request: GoogleAuthRequest):
     except ValueError:
         raise HTTPException(status_code=401, detail="Invalid Google Token")
 
+# ==============================
+# 2) Chat API (OpenRouter)
+# ==============================
+
+# ==============================
+# 3) Google Auth API
+# ==============================
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
+
+class GoogleAuthRequest(BaseModel):
+    token: str
+
+@app.post("/auth/google")
+async def google_login(request: GoogleAuthRequest):
+    try:
+        # Verify the token
+        id_info = id_token.verify_oauth2_token(
+            request.token, 
+            google_requests.Request(),
+            audience="888682176364-95k6bep0ajble7a48romjeui850dptg0.apps.googleusercontent.com"
+        )
+
+        return {
+            "success": True,
+            "user": {
+                "email": id_info['email'],
+                "name": id_info.get('name'),
+                "picture": id_info.get('picture')
+            }
+        }
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Invalid Google Token")
+
 class ChatRequest(BaseModel):
     message: str
     model: Optional[str] = "google/gemma-3-27b-it:free"
