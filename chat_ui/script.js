@@ -78,34 +78,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (newChatBtn) newChatBtn.addEventListener('click', startNewChat);
 
-    // Login button handler
+    // Login button handler - Event listener as backup
     if (loginBtn) {
-        loginBtn.addEventListener('click', () => {
-            console.log("Login button clicked");
-            const overlay = document.getElementById('login-overlay');
-            if (overlay) overlay.style.display = 'flex';
-
-            // Render Google Button inside the overlay
-            try {
-                if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
-                    // Initialize Google Sign-In
-                    google.accounts.id.initialize({
-                        client_id: "888682176364-95k6bep0ajble7a48romjeui850dptg0.apps.googleusercontent.com",
-                        callback: handleCredentialResponse
-                    });
-
-                    google.accounts.id.renderButton(
-                        document.getElementById("google-login-container"),
-                        { theme: "outline", size: "large", width: 250 }
-                    );
-                } else {
-                    console.error("Google Sign-In library not loaded.");
-                    document.getElementById("google-login-container").innerHTML = '<p style="color: red;">Error loading Google Sign-In. Please refresh the page.</p>';
-                }
-            } catch (error) {
-                console.error("Error rendering Google button:", error);
-            }
-        });
+        loginBtn.addEventListener('click', window.openLoginOverlay);
     }
 
     // Back to Chat handler
@@ -120,6 +95,34 @@ document.addEventListener('DOMContentLoaded', () => {
     const logoutBtn = document.getElementById('logout-btn');
     if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
 });
+
+// Define globally so it can be called from HTML if needed
+window.openLoginOverlay = function () {
+    console.log("Login button clicked (Global)");
+    const overlay = document.getElementById('login-overlay');
+    if (overlay) overlay.style.display = 'flex';
+
+    // Render Google Button inside the overlay
+    try {
+        if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
+            // Initialize Google Sign-In
+            google.accounts.id.initialize({
+                client_id: "888682176364-95k6bep0ajble7a48romjeui850dptg0.apps.googleusercontent.com",
+                callback: handleCredentialResponse
+            });
+
+            google.accounts.id.renderButton(
+                document.getElementById("google-login-container"),
+                { theme: "outline", size: "large", width: 250 }
+            );
+        } else {
+            console.error("Google Sign-In library not loaded.");
+            document.getElementById("google-login-container").innerHTML = '<p style="color: red;">Error loading Google Sign-In. Please refresh the page.</p>';
+        }
+    } catch (error) {
+        console.error("Error rendering Google button:", error);
+    }
+};
 
 // Google Sign-In Callback
 function handleCredentialResponse(response) {
