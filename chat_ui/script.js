@@ -283,41 +283,13 @@ function renderHistoryList(history) {
     history.forEach(session => {
         const item = document.createElement('div');
         item.className = 'history-item';
-        item.innerHTML = `
-            <span class="title">${escapeHtml(session.title)}</span>
-            <i class="fas fa-ellipsis-h menu-btn" onclick="toggleHistoryMenu(event, '${session.id}')"></i>
-            <div id="menu-${session.id}" class="history-menu">
-                <div class="menu-item" onclick="renameChat('${session.id}')">
-                    <i class="fas fa-edit"></i> Rename
-                </div>
-                <div class="menu-item delete" onclick="deleteChat('${session.id}')">
-                    <i class="fas fa-trash-alt"></i> Delete
-                </div>
-            </div>
-        `;
-        item.addEventListener('click', (e) => {
-            // Prevent loading chat if clicking menu or menu items
-            if (!e.target.closest('.menu-btn') && !e.target.closest('.history-menu')) {
-                loadChatSession(session);
-            }
-        });
+        item.innerHTML = `<span class="title">${escapeHtml(session.title)}</span>`;
+        item.addEventListener('click', () => loadChatSession(session));
         historyList.appendChild(item);
     });
 }
 
-// Global click to close menus
-document.addEventListener('click', (e) => {
-    if (!e.target.closest('.menu-btn') && !e.target.closest('.history-menu')) {
-        document.querySelectorAll('.history-menu').forEach(menu => {
-            menu.classList.remove('show');
-            // Remove active class from buttons
-            const btn = menu.previousElementSibling;
-            if (btn && btn.classList.contains('menu-btn')) {
-                btn.classList.remove('active');
-            }
-        });
-    }
-});
+
 
 function toggleHistoryMenu(event, chatId) {
     event.stopPropagation();
