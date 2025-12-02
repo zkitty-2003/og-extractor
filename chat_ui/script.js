@@ -354,7 +354,7 @@ function renameChat(chatId) {
     }
     // Close menu
     const menu = document.getElementById(`menu-${chatId}`);
-    if (menu) menu.classList.remove('show');
+    if (menu) menu.style.display = 'none';
 }
 
 function deleteChat(chatId) {
