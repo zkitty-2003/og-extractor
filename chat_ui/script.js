@@ -289,62 +289,6 @@ function renderHistoryList(history) {
     });
 }
 
-
-
-function toggleHistoryMenu(event, chatId) {
-    event.stopPropagation();
-    // Close other menus
-    document.querySelectorAll('.history-menu').forEach(menu => {
-        if (menu.id !== `menu-${chatId}`) {
-            menu.classList.remove('show');
-            const btn = menu.previousElementSibling;
-            if (btn) btn.classList.remove('active');
-        }
-    });
-
-    const menu = document.getElementById(`menu-${chatId}`);
-    const btn = event.target;
-
-    if (menu) {
-        menu.classList.toggle('show');
-        btn.classList.toggle('active');
-    }
-}
-
-function renameChat(chatId) {
-    const key = getStorageKey();
-    let history = JSON.parse(localStorage.getItem(key) || '[]');
-    const session = history.find(h => h.id === chatId);
-
-    if (session) {
-        const newTitle = prompt("Enter new chat name:", session.title);
-        if (newTitle && newTitle.trim()) {
-            session.title = newTitle.trim();
-            localStorage.setItem(key, JSON.stringify(history));
-            renderHistoryList(history);
-        }
-    }
-    // Close menu
-    const menu = document.getElementById(`menu-${chatId}`);
-    if (menu) menu.classList.remove('show');
-}
-
-function deleteChat(chatId) {
-    if (confirm("Are you sure you want to delete this chat?")) {
-        const key = getStorageKey();
-        let history = JSON.parse(localStorage.getItem(key) || '[]');
-        history = history.filter(h => h.id !== chatId);
-        localStorage.setItem(key, JSON.stringify(history));
-
-        renderHistoryList(history);
-
-        // If deleted current chat, clear UI or load another
-        if (currentChatId === chatId) {
-            startNewChat();
-        }
-    }
-}
-
 function loadChatSession(session) {
     currentChatId = session.id;
     chatHistory = session.messages || [];
