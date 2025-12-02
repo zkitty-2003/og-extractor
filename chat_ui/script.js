@@ -123,8 +123,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Google Sign-In Callback
 function handleCredentialResponse(response) {
+    console.log("handleCredentialResponse called", response);
     if (response.credential) {
         // Send token to backend
+        console.log("Sending token to backend...");
         fetch('/auth/google', {
             method: 'POST',
             headers: {
@@ -132,12 +134,19 @@ function handleCredentialResponse(response) {
             },
             body: JSON.stringify({ token: response.credential })
         })
-            .then(res => res.json())
+            .then(res => {
+                console.log("Backend response status:", res.status);
+                return res.json();
+            })
             .then(data => {
+                console.log("Backend data:", data);
                 if (data.success) {
+                    console.log("Login successful, updating UI...");
                     currentUser = data.user;
                     updateUIForLogin();
                     // Keep overlay open to show profile view
+                } else {
+                    console.error("Login failed:", data);
                 }
             })
             .catch(err => console.error('Login error:', err));
@@ -145,6 +154,7 @@ function handleCredentialResponse(response) {
 }
 
 function updateUIForLogin() {
+    console.log("updateUIForLogin called", currentUser);
     if (currentUser) {
         // Update Sidebar Profile
         document.getElementById('user-name').textContent = currentUser.name;
@@ -157,6 +167,7 @@ function updateUIForLogin() {
 
         // Update Overlay Content to Profile View
         const loginContent = document.querySelector('.login-content');
+        console.log("Found loginContent:", loginContent);
         if (loginContent) {
             loginContent.innerHTML = `
                 <h1>User Profile</h1>
