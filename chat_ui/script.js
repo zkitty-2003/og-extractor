@@ -103,10 +103,6 @@ document.addEventListener('DOMContentLoaded', () => {
             window.openLoginOverlay();
         });
     }
-
-    // Logout handler (Overlay only now)
-    // const logoutBtn = document.getElementById('logout-btn'); // Removed from sidebar
-    // if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
 });
 
 // Define globally so it can be called from HTML if needed
@@ -298,9 +294,6 @@ function loadChatSession(session) {
 
     // Render messages
     chatHistory.forEach(msg => {
-        // We need to re-render messages. 
-        // Note: appendMessage pushes to chatHistory, so we need to temporarily disable that or just render UI.
-        // Let's refactor appendMessage to separate UI rendering from state update.
         renderMessageToUI(msg.content, msg.role === 'user' ? 'user' : 'ai');
     });
 
@@ -311,9 +304,10 @@ function loadChatSession(session) {
     }
 }
 
-function renderMessageToUI(text, sender) {
+function renderMessageToUI(text, sender, id = null) {
     const chatContainer = document.getElementById('chat-container');
     const msgDiv = document.createElement('div');
+    if (id) msgDiv.id = id;
     msgDiv.classList.add('message', sender === 'user' ? 'user-message' : 'ai-message');
 
     const avatar = document.createElement('div');
@@ -385,8 +379,14 @@ async function sendMessage() {
     appendMessage(text, 'user');
     messageInput.value = '';
 
-    // Show Typing Indicator
-    const typingId = showTypingIndicator();
+    // Create AI Message Placeholder
+    const aiMsgId = 'ai-msg-' + Date.now();
+    appendMessage('', 'ai', aiMsgId); // Empty content initially
+    const aiMsgElement = document.getElementById(aiMsgId);
+    const contentDiv = aiMsgElement.querySelector('.content');
+
+    // Show Loading/Typing initially
+    contentDiv.innerHTML = '<i class="fas fa-ellipsis-h fa-fade"></i>';
 
     try {
         const response = await fetch('/chat', {
@@ -397,65 +397,80 @@ async function sendMessage() {
             },
             body: JSON.stringify({
                 message: text,
-                history: chatHistory.map(msg => ({ role: msg.role, content: msg.content })), // Send clean history
+                history: chatHistory.map(msg => ({ role: msg.role, content: msg.content })),
                 model: "google/gemma-3-27b-it:free"
             })
         });
 
-        const data = await response.json();
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let fullText = '';
 
-        // Remove Typing Indicator
-        removeTypingIndicator(typingId);
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
 
-        if (data.success) {
-            const aiMsg = data.data.message;
-            appendMessage(aiMsg, 'ai');
-        } else {
-            appendMessage('Error: ' + (data.detail || 'Unknown error'), 'ai');
+            const chunk = decoder.decode(value, { stream: true });
+
+            // Handle potential error JSON in stream
+            if (chunk.startsWith('{"error":')) {
+                try {
+                    const errData = JSON.parse(chunk);
+                    fullText = "Error: " + errData.error;
+                } catch (e) {
+                    fullText += chunk;
+                }
+            } else {
+                fullText += chunk;
+            }
+
+            // Update UI
+            // Check for Thinking Process
+            const thinkingMatch = fullText.match(/<thought>([\s\S]*?)<\/thought>/);
+            let thinkingHtml = '';
+            let mainText = fullText;
+
+            if (thinkingMatch) {
+                const thinkingContent = thinkingMatch[1].trim();
+                thinkingHtml = `
+                    <div class="thinking-process">
+                        <details open>
+                            <summary>Thinking Process</summary>
+                            <p>${escapeHtml(thinkingContent).replace(/\n/g, '<br>')}</p>
+                        </details>
+                    </div>
+                `;
+                mainText = fullText.replace(thinkingMatch[0], '').trim();
+            } else if (fullText.includes('<thought>')) {
+                // Partial thought tag, don't render yet or render partially
+                // For simplicity, we just render what we have, but it might look broken temporarily
+            }
+
+            contentDiv.innerHTML = thinkingHtml + marked.parse(mainText);
+            scrollToBottom();
         }
 
+        // Final update to state
+        chatHistory.push({ role: "assistant", content: fullText });
+        saveChatHistory();
+
     } catch (error) {
-        removeTypingIndicator(typingId);
-        appendMessage('Error: ' + error.message, 'ai');
+        contentDiv.textContent = 'Error: ' + error.message;
+        chatHistory.push({ role: "assistant", content: 'Error: ' + error.message });
+        saveChatHistory();
     }
 }
 
-function appendMessage(text, sender) {
-    // Update State
-    chatHistory.push({ role: sender === 'user' ? "user" : "assistant", content: text });
-
+function appendMessage(text, sender, id = null) {
     // Render UI
-    renderMessageToUI(text, sender);
+    renderMessageToUI(text, sender, id);
 
-    // Save History
-    saveChatHistory();
-}
-
-function showTypingIndicator() {
-    const chatContainer = document.getElementById('chat-container');
-    const id = 'typing-' + Date.now();
-    const msgDiv = document.createElement('div');
-    msgDiv.id = id;
-    msgDiv.classList.add('message', 'ai-message');
-
-    const avatar = document.createElement('div');
-    avatar.classList.add('avatar');
-    avatar.textContent = 'A';
-
-    const bubble = document.createElement('div');
-    bubble.classList.add('bubble');
-    bubble.innerHTML = '<div class="content"><i class="fas fa-ellipsis-h fa-fade"></i></div>'; // Typing animation
-
-    msgDiv.appendChild(avatar);
-    msgDiv.appendChild(bubble);
-    chatContainer.appendChild(msgDiv);
-    scrollToBottom();
-    return id;
-}
-
-function removeTypingIndicator(id) {
-    const el = document.getElementById(id);
-    if (el) el.remove();
+    // Save History only if it's a user message or completed AI message (not placeholder)
+    if (!id) {
+        // Update State
+        chatHistory.push({ role: sender === 'user' ? "user" : "assistant", content: text });
+        saveChatHistory();
+    }
 }
 
 function scrollToBottom() {
