@@ -1,157 +1,30 @@
-// Global state
-let currentUser = null;
-let chatHistory = [];
-let apiKey = localStorage.getItem('openrouter_api_key') || '';
-
-// Initialize
-document.addEventListener('DOMContentLoaded', () => {
-    // DOM Elements
-    const messageInput = document.getElementById('message-input');
-    const sendBtn = document.getElementById('send-btn');
-    const chatContainer = document.getElementById('chat-container');
-    const settingsBtn = document.getElementById('settings-btn');
-    const apiKeyModal = document.getElementById('api-key-modal');
-    const saveApiKeyBtn = document.getElementById('save-api-key');
-    const apiKeyInput = document.getElementById('api-key-input');
-    const mobileMenuBtn = document.getElementById('mobile-menu-btn');
-    const sidebar = document.getElementById('sidebar');
-    const newChatBtn = document.getElementById('new-chat-btn');
-    const userProfile = document.getElementById('user-profile');
-    const loginBtn = document.getElementById('login-btn');
-
-    // Load saved API key
-    if (apiKey) {
-        apiKeyInput.value = apiKey;
-    }
-
-    // Event Listeners
-    if (sendBtn) sendBtn.addEventListener('click', sendMessage);
-
-    if (messageInput) {
-        messageInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendMessage();
-            }
-        });
-
-        // Auto-resize textarea
-        messageInput.addEventListener('input', function () {
-            this.style.height = 'auto';
-            this.style.height = (this.scrollHeight) + 'px';
-            if (this.value === '') {
-                this.style.height = 'auto';
-            }
-        });
-    }
-
-    if (settingsBtn) {
-        settingsBtn.addEventListener('click', () => {
-            apiKeyModal.style.display = 'block';
-        });
-    }
-
-    if (saveApiKeyBtn) {
-        saveApiKeyBtn.addEventListener('click', () => {
-            const key = apiKeyInput.value.trim();
-            if (key) {
-                apiKey = key;
-                localStorage.setItem('openrouter_api_key', key);
-                apiKeyModal.style.display = 'none';
-                alert('API Key saved!');
-            }
-        });
-    }
-
-    // Close modal when clicking outside
-    window.addEventListener('click', (e) => {
-        if (e.target === apiKeyModal) {
-            apiKeyModal.style.display = 'none';
+// Send token to backend
+console.log("Sending token to backend...");
+fetch('/auth/google', {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ token: response.credential })
+})
+    .then(res => {
+        console.log("Backend response status:", res.status);
+        return res.json();
+    })
+    .then(data => {
+        console.log("Backend data:", data);
+        if (data.success) {
+            console.log("Login successful, updating UI...");
+            currentUser = data.user;
+            updateUIForLogin();
+            // Keep overlay open to show profile view
+        } else {
+            console.error("Login failed:", data);
         }
-    });
+    })
+    .catch(err => console.error('Login error:', err));
 
-    if (mobileMenuBtn) {
-        mobileMenuBtn.addEventListener('click', () => {
-            sidebar.classList.toggle('active');
-        });
-    }
 
-    if (newChatBtn) newChatBtn.addEventListener('click', startNewChat);
-
-    // Login button handler
-    if (loginBtn) {
-        loginBtn.addEventListener('click', () => {
-            console.log("Login button clicked");
-            const overlay = document.getElementById('login-overlay');
-            if (overlay) overlay.style.display = 'flex';
-
-            // Render Google Button inside the overlay
-            try {
-                if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
-                    // Initialize Google Sign-In
-                    google.accounts.id.initialize({
-                        client_id: "888682176364-95k6bep0ajble7a48romjeui850dptg0.apps.googleusercontent.com",
-                        callback: handleCredentialResponse
-                    });
-
-                    google.accounts.id.renderButton(
-                        document.getElementById("google-login-container"),
-                        { theme: "outline", size: "large", width: 250 }
-                    );
-                } else {
-                    console.error("Google Sign-In library not loaded.");
-                    document.getElementById("google-login-container").innerHTML = '<p style="color: red;">Error loading Google Sign-In. Please refresh the page.</p>';
-                }
-            } catch (error) {
-                console.error("Error rendering Google button:", error);
-            }
-        });
-    }
-
-    // Back to Chat handler
-    const backBtn = document.getElementById('back-to-chat-btn');
-    if (backBtn) {
-        backBtn.addEventListener('click', () => {
-            document.getElementById('login-overlay').style.display = 'none';
-        });
-    }
-
-    // Logout handler
-    const logoutBtn = document.getElementById('logout-btn');
-    if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
-});
-
-// Google Sign-In Callback
-function handleCredentialResponse(response) {
-    console.log("handleCredentialResponse called", response);
-    if (response.credential) {
-        // Send token to backend
-        console.log("Sending token to backend...");
-        fetch('/auth/google', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ token: response.credential })
-        })
-            .then(res => {
-                console.log("Backend response status:", res.status);
-                return res.json();
-            })
-            .then(data => {
-                console.log("Backend data:", data);
-                if (data.success) {
-                    console.log("Login successful, updating UI...");
-                    currentUser = data.user;
-                    updateUIForLogin();
-                    // Keep overlay open to show profile view
-                } else {
-                    console.error("Login failed:", data);
-                }
-            })
-            .catch(err => console.error('Login error:', err));
-    }
-}
 
 function updateUIForLogin() {
     console.log("updateUIForLogin called", currentUser);
