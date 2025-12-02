@@ -54,34 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    if (settingsBtn) {
-        settingsBtn.addEventListener('click', () => {
-            apiKeyModal.style.display = 'block';
-        });
-    }
 
-    if (saveApiKeyBtn) {
-        saveApiKeyBtn.addEventListener('click', () => {
-            const key = apiKeyInput.value.trim();
-            if (key) {
-                apiKey = key;
-                localStorage.setItem('openrouter_api_key', key);
-                alert('บันทึก API Key ของคุณแล้ว');
-            } else {
-                apiKey = '';
-                localStorage.removeItem('openrouter_api_key');
-                alert('ลบ API Key แล้ว (จะใช้ของระบบแทน)');
-            }
-            apiKeyModal.style.display = 'none';
-        });
-    }
-
-    // Close modal when clicking outside
-    window.addEventListener('click', (e) => {
-        if (e.target === apiKeyModal) {
-            apiKeyModal.style.display = 'none';
-        }
-    });
 
     if (mobileMenuBtn) {
         mobileMenuBtn.addEventListener('click', () => {
