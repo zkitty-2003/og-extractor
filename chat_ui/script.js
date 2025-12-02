@@ -75,6 +75,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // Render Google Button inside the overlay
         try {
             if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
+                // Initialize Google Sign-In
+                google.accounts.id.initialize({
+                    client_id: "888682176364-95k6bep0ajble7a48romjeui850dptg0.apps.googleusercontent.com",
+                    callback: handleCredentialResponse
+                });
+
                 google.accounts.id.renderButton(
                     document.getElementById("google-login-container"),
                     { theme: "outline", size: "large", width: 250 }
