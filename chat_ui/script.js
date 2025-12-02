@@ -71,13 +71,25 @@ document.addEventListener('DOMContentLoaded', () => {
     newChatBtn.addEventListener('click', startNewChat);
 
     // Login button handler
-    loginBtn.addEventListener('click', handleLogin);
+    loginBtn.addEventListener('click', () => {
+        document.getElementById('login-overlay').style.display = 'flex';
+        // Render Google Button inside the overlay
+        google.accounts.id.renderButton(
+            document.getElementById("google-login-container"),
+            { theme: "outline", size: "large", width: 250 }
+        );
+    });
+
+    // Back to Chat handler
+    document.getElementById('back-to-chat-btn').addEventListener('click', () => {
+        document.getElementById('login-overlay').style.display = 'none';
+    });
 
     // Logout handler
     document.getElementById('logout-btn').addEventListener('click', handleLogout);
 });
 
-// Google Sign-In Callback (kept for future use)
+// Google Sign-In Callback
 function handleCredentialResponse(response) {
     if (response.credential) {
         // Send token to backend
@@ -93,6 +105,7 @@ function handleCredentialResponse(response) {
                 if (data.success) {
                     currentUser = data.user;
                     updateUIForLogin();
+                    document.getElementById('login-overlay').style.display = 'none';
                 }
             })
             .catch(err => console.error('Login error:', err));
@@ -100,24 +113,7 @@ function handleCredentialResponse(response) {
 }
 
 function handleLogin() {
-    // Trigger Google Sign-In programmatically
-    google.accounts.id.initialize({
-        client_id: "888682176364-95k6bep0ajble7a48romjeui850dptg0.apps.googleusercontent.com",
-        callback: handleCredentialResponse
-    });
-
-    google.accounts.id.prompt((notification) => {
-        if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-            // Fallback: show One Tap dialog
-            document.body.innerHTML += `
-                <div id="g_id_onload"
-                    data-client_id="888682176364-95k6bep0ajble7a48romjeui850dptg0.apps.googleusercontent.com"
-                    data-callback="handleCredentialResponse"
-                    data-auto_prompt="true">
-                </div>
-            `;
-        }
-    });
+    // This function is now replaced by the overlay logic
 }
 
 function updateUIForLogin() {
@@ -134,6 +130,7 @@ function handleLogout() {
     currentUser = null;
     userProfile.style.display = 'none';
     loginBtn.style.display = 'flex';
+    location.reload();
 }
 
 // Chat Functions
@@ -214,58 +211,15 @@ function appendMessage(text, sender) {
         msgDiv.appendChild(bubble);
     }
 
-    chatContainer.appendChild(msgDiv);
-    scrollToBottom();
-}
 
-function showTypingIndicator() {
-    const id = 'typing-' + Date.now();
-    const msgDiv = document.createElement('div');
-    msgDiv.id = id;
-    msgDiv.classList.add('message', 'ai-message');
+    function scrollToBottom() {
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
 
-    const avatar = document.createElement('div');
-    avatar.classList.add('avatar');
-    avatar.textContent = 'A';
-
-    const bubble = document.createElement('div');
-    bubble.classList.add('bubble');
-    bubble.innerHTML = '<i class="fas fa-ellipsis-h fa-fade"></i>'; // Typing animation
-
-    msgDiv.appendChild(avatar);
-    msgDiv.appendChild(bubble);
-    chatContainer.appendChild(msgDiv);
-    scrollToBottom();
-    return id;
-}
-
-function removeTypingIndicator(id) {
-    const el = document.getElementById(id);
-    if (el) el.remove();
-}
-
-function scrollToBottom() {
-    chatContainer.scrollTop = chatContainer.scrollHeight;
-}
-
-function startNewChat() {
-    chatHistory = [];
-    chatContainer.innerHTML = '';
-    // Add Welcome Message
-    const welcomeDiv = document.createElement('div');
-    welcomeDiv.className = 'message ai-message';
-    welcomeDiv.innerHTML = `
-        <div class="avatar">A</div>
-        <div class="bubble">สวัสดีครับ มีอะไรให้พี่ช่วยไหม</div>
-    `;
-    chatContainer.appendChild(welcomeDiv);
-}
-
-// Helper to escape HTML to prevent XSS, but allow line breaks
-function escapeHtml(text) {
-    return text
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/\n/g, "<br>");
-}
+    function startNewChat() {
+        chatHistory = [];
+        chatContainer.innerHTML = '';
+        // Add Welcome Message
+        const welcomeDiv = document.createElement('div');
+            .replace(/\n/g, "<br>");
+    }
