@@ -93,8 +93,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const backBtn = document.getElementById('back-to-chat-btn');
     if (backBtn) {
         backBtn.addEventListener('click', () => {
+            console.log("Back to chat clicked");
             document.getElementById('login-overlay').style.display = 'none';
         });
+    } else {
+        console.error("Back to chat button not found!");
     }
 
     // User Profile Click Handler (Sidebar)
@@ -359,6 +362,112 @@ function renderMessageToUI(text, sender, id = null) {
 
     chatContainer.appendChild(msgDiv);
     scrollToBottom();
+}
+
+// Chat Functions
+async function sendMessage() {
+    if (isBusy) return;
+
+    const messageInput = document.getElementById('message-input');
+    const apiKeyModal = document.getElementById('api-key-modal');
+
+    const text = messageInput.value.trim();
+    if (!text) return;
+
+    if (!apiKey) {
+        alert('Please set your OpenRouter API Key in Settings first.');
+        if (apiKeyModal) apiKeyModal.style.display = 'block';
+        return;
+    }
+
+    // Lock UI
+    setBusyState(true);
+
+    // Add User Message
+    appendMessage(text, 'user');
+    messageInput.value = '';
+
+    // Create AI Message Placeholder
+    const aiMsgId = 'ai-msg-' + Date.now();
+    appendMessage('', 'ai', aiMsgId); // Empty content initially
+    const aiMsgElement = document.getElementById(aiMsgId);
+    const contentDiv = aiMsgElement.querySelector('.content');
+
+    // Show Loading/Typing initially
+    contentDiv.innerHTML = '<i class="fas fa-ellipsis-h fa-fade"></i>';
+
+    try {
+        const response = await fetch('/chat', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+                message: text,
+                history: chatHistory.map(msg => ({ role: msg.role, content: msg.content })),
+                model: "google/gemma-3-27b-it:free"
+            })
+        });
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let fullText = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value, { stream: true });
+
+            // Handle potential error JSON in stream
+            if (chunk.startsWith('{"error":')) {
+                try {
+                    const errData = JSON.parse(chunk);
+                    fullText = "Error: " + errData.error;
+                } catch (e) {
+                    fullText += chunk;
+                }
+            } else {
+                fullText += chunk;
+            }
+
+            // Update UI
+            // Check for Thinking Process
+            const thinkingMatch = fullText.match(/<thought>([\s\S]*?)<\/thought>/);
+            let thinkingHtml = '';
+            let mainText = fullText;
+
+            if (thinkingMatch) {
+                const thinkingContent = thinkingMatch[1].trim();
+                thinkingHtml = `
+                    <div class="thinking-process">
+                        <details open>
+                            <summary>Thinking Process</summary>
+                            <p>${escapeHtml(thinkingContent).replace(/\n/g, '<br>')}</p>
+                        </details>
+                    </div>
+                `;
+                mainText = fullText.replace(thinkingMatch[0], '').trim();
+            } else if (fullText.includes('<thought>')) {
+                // Partial thought tag, don't render yet or render partially
+            }
+
+            contentDiv.innerHTML = thinkingHtml + marked.parse(mainText);
+            scrollToBottom();
+        }
+
+        // Final update to state
+        chatHistory.push({ role: "assistant", content: fullText });
+        saveChatHistory();
+
+    } catch (error) {
+        contentDiv.textContent = 'Error: ' + error.message;
+        chatHistory.push({ role: "assistant", content: 'Error: ' + error.message });
+        saveChatHistory();
+    } finally {
+        setBusyState(false);
+    }
 }
 
 function appendMessage(text, sender, id = null) {
