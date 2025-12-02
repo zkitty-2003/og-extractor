@@ -23,7 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const loginBtn = document.getElementById('login-btn');
 
     // Load saved API key
-    if (apiKey) {
+    if (apiKey && apiKeyInput) {
         apiKeyInput.value = apiKey;
     }
 
