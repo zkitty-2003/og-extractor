@@ -417,6 +417,30 @@ textarea {
     color: #fff;
 }
 
+/* Table Styles */
+.message .content table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 15px;
+    margin-top: 10px;
+}
+
+.message .content th,
+.message .content td {
+    border: 1px solid var(--border-color);
+    padding: 8px 12px;
+    text-align: left;
+}
+
+.message .content th {
+    background-color: #40414f;
+    font-weight: 600;
+}
+
+.message .content tr:nth-child(even) {
+    background-color: rgba(255, 255, 255, 0.02);
+}
+
 /* Thinking Process */
 .thinking-process {
     color: #aaa;
