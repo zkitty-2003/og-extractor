@@ -1,7 +1,8 @@
 // Global state
 let currentUser = null;
-let chatHistory = [];
+let chatHistory = []; // Current chat messages
 let apiKey = localStorage.getItem('openrouter_api_key') || '';
+let currentChatId = null; // ID of the current active chat session
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -23,6 +24,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (apiKey) {
         apiKeyInput.value = apiKey;
     }
+
+    // Load Chat History
+    loadChatHistory();
 
     // Event Listeners
     if (sendBtn) sendBtn.addEventListener('click', sendMessage);
@@ -140,7 +144,9 @@ function handleCredentialResponse(response) {
                 if (data.success) {
                     currentUser = data.user;
                     updateUIForLogin();
-                    // Keep overlay open to show profile view
+                    // Reload history for the logged-in user
+                    loadChatHistory();
+                    startNewChat(); // Optional: Start fresh or load last chat? Let's start fresh.
                 }
             })
             .catch(err => console.error('Login error:', err));
@@ -201,13 +207,154 @@ function handleLogout() {
         );
     }
 
+    // Reload history for guest
+    loadChatHistory();
     location.reload();
 }
+
+// --- Chat History Logic ---
+
+function getStorageKey() {
+    return currentUser ? `chat_history_${currentUser.email}` : 'chat_history_guest';
+}
+
+function loadChatHistory() {
+    const key = getStorageKey();
+    const history = JSON.parse(localStorage.getItem(key) || '[]');
+    renderHistoryList(history);
+}
+
+function saveChatHistory() {
+    const key = getStorageKey();
+    let history = JSON.parse(localStorage.getItem(key) || '[]');
+
+    if (!currentChatId) {
+        // Create new chat session
+        currentChatId = Date.now().toString();
+        const newSession = {
+            id: currentChatId,
+            title: chatHistory.length > 0 ? chatHistory[0].content.substring(0, 30) + '...' : 'New Chat',
+            timestamp: Date.now(),
+            messages: chatHistory
+        };
+        history.unshift(newSession); // Add to top
+    } else {
+        // Update existing session
+        const index = history.findIndex(h => h.id === currentChatId);
+        if (index !== -1) {
+            history[index].messages = chatHistory;
+            // Update title if it's the first message
+            if (chatHistory.length > 0) {
+                history[index].title = chatHistory[0].content.substring(0, 30) + '...';
+            }
+            history[index].timestamp = Date.now();
+            // Move to top
+            const updatedSession = history.splice(index, 1)[0];
+            history.unshift(updatedSession);
+        }
+    }
+
+    localStorage.setItem(key, JSON.stringify(history));
+    renderHistoryList(history);
+}
+
+function renderHistoryList(history) {
+    const historyList = document.getElementById('history-list');
+    if (!historyList) return;
+
+    historyList.innerHTML = ''; // Clear current list
+
+    history.forEach(session => {
+        const item = document.createElement('div');
+        item.className = 'history-item';
+        item.innerHTML = `<span class="title">${escapeHtml(session.title)}</span>`;
+        item.addEventListener('click', () => loadChatSession(session));
+        historyList.appendChild(item);
+    });
+}
+
+function loadChatSession(session) {
+    currentChatId = session.id;
+    chatHistory = session.messages || [];
+
+    // Clear UI
+    const chatContainer = document.getElementById('chat-container');
+    chatContainer.innerHTML = '';
+
+    // Render messages
+    chatHistory.forEach(msg => {
+        // We need to re-render messages. 
+        // Note: appendMessage pushes to chatHistory, so we need to temporarily disable that or just render UI.
+        // Let's refactor appendMessage to separate UI rendering from state update.
+        renderMessageToUI(msg.content, msg.role === 'user' ? 'user' : 'ai');
+    });
+
+    // Close mobile menu if open
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar.classList.contains('active')) {
+        sidebar.classList.remove('active');
+    }
+}
+
+function renderMessageToUI(text, sender) {
+    const chatContainer = document.getElementById('chat-container');
+    const msgDiv = document.createElement('div');
+    msgDiv.classList.add('message', sender === 'user' ? 'user-message' : 'ai-message');
+
+    const avatar = document.createElement('div');
+    avatar.classList.add('avatar');
+    avatar.textContent = sender === 'user' ? 'U' : 'A';
+    if (sender === 'user' && currentUser) {
+        avatar.innerHTML = `<img src="${currentUser.picture}" style="width:100%;height:100%;border-radius:50%;">`;
+    }
+
+    const bubble = document.createElement('div');
+    bubble.classList.add('bubble');
+
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'content';
+
+    if (sender === 'ai') {
+        const thinkingMatch = text.match(/<thought>([\s\S]*?)<\/thought>/);
+        let thinkingHtml = '';
+        let mainText = text;
+
+        if (thinkingMatch) {
+            const thinkingContent = thinkingMatch[1].trim();
+            thinkingHtml = `
+                <div class="thinking-process">
+                    <details open>
+                        <summary>Thinking Process</summary>
+                        <p>${escapeHtml(thinkingContent).replace(/\n/g, '<br>')}</p>
+                    </details>
+                </div>
+            `;
+            mainText = text.replace(thinkingMatch[0], '').trim();
+        }
+        contentDiv.innerHTML = thinkingHtml + marked.parse(mainText);
+    } else {
+        contentDiv.textContent = text;
+    }
+
+    bubble.appendChild(contentDiv);
+
+    if (sender === 'user') {
+        msgDiv.appendChild(bubble);
+        msgDiv.appendChild(avatar);
+    } else {
+        msgDiv.appendChild(avatar);
+        msgDiv.appendChild(bubble);
+    }
+
+    chatContainer.appendChild(msgDiv);
+    scrollToBottom();
+}
+
+// --- End Chat History Logic ---
 
 // Chat Functions
 async function sendMessage() {
     const messageInput = document.getElementById('message-input');
-    const chatContainer = document.getElementById('chat-container');
     const apiKeyModal = document.getElementById('api-key-modal');
 
     const text = messageInput.value.trim();
@@ -231,12 +378,12 @@ async function sendMessage() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}` // Send API Key in Auth header as expected by backend
+                'Authorization': `Bearer ${apiKey}`
             },
             body: JSON.stringify({
                 message: text,
-                history: chatHistory,
-                model: "google/gemma-3-27b-it:free" // Default model
+                history: chatHistory.map(msg => ({ role: msg.role, content: msg.content })), // Send clean history
+                model: "google/gemma-3-27b-it:free"
             })
         });
 
@@ -248,10 +395,6 @@ async function sendMessage() {
         if (data.success) {
             const aiMsg = data.data.message;
             appendMessage(aiMsg, 'ai');
-
-            // Update History
-            chatHistory.push({ role: "user", content: text });
-            chatHistory.push({ role: "assistant", content: aiMsg });
         } else {
             appendMessage('Error: ' + (data.detail || 'Unknown error'), 'ai');
         }
@@ -263,61 +406,14 @@ async function sendMessage() {
 }
 
 function appendMessage(text, sender) {
-    const chatContainer = document.getElementById('chat-container');
-    const msgDiv = document.createElement('div');
-    msgDiv.classList.add('message', sender === 'user' ? 'user-message' : 'ai-message');
+    // Update State
+    chatHistory.push({ role: sender === 'user' ? "user" : "assistant", content: text });
 
-    const avatar = document.createElement('div');
-    avatar.classList.add('avatar');
-    avatar.textContent = sender === 'user' ? 'U' : 'A';
-    if (sender === 'user' && currentUser) {
-        // Use user image if logged in
-        avatar.innerHTML = `<img src="${currentUser.picture}" style="width:100%;height:100%;border-radius:50%;">`;
-    }
+    // Render UI
+    renderMessageToUI(text, sender);
 
-    const bubble = document.createElement('div');
-    bubble.classList.add('bubble');
-
-    const contentDiv = document.createElement('div');
-    contentDiv.className = 'content';
-
-    if (sender === 'ai') {
-        // Check for Thinking Process
-        const thinkingMatch = text.match(/<thought>([\s\S]*?)<\/thought>/);
-        let thinkingHtml = '';
-        let mainText = text;
-
-        if (thinkingMatch) {
-            const thinkingContent = thinkingMatch[1].trim();
-            thinkingHtml = `
-                <div class="thinking-process">
-                    <details open>
-                        <summary>Thinking Process</summary>
-                        <p>${escapeHtml(thinkingContent).replace(/\n/g, '<br>')}</p>
-                    </details>
-                </div>
-            `;
-            mainText = text.replace(thinkingMatch[0], '').trim();
-        }
-
-        // Parse Markdown for main text
-        contentDiv.innerHTML = thinkingHtml + marked.parse(mainText);
-    } else {
-        contentDiv.textContent = text;
-    }
-
-    bubble.appendChild(contentDiv);
-
-    if (sender === 'user') {
-        msgDiv.appendChild(bubble);
-        msgDiv.appendChild(avatar);
-    } else {
-        msgDiv.appendChild(avatar);
-        msgDiv.appendChild(bubble);
-    }
-
-    chatContainer.appendChild(msgDiv);
-    scrollToBottom();
+    // Save History
+    saveChatHistory();
 }
 
 function showTypingIndicator() {
@@ -355,6 +451,8 @@ function scrollToBottom() {
 function startNewChat() {
     const chatContainer = document.getElementById('chat-container');
     chatHistory = [];
+    currentChatId = null; // Reset ID for new chat
+
     if (chatContainer) {
         chatContainer.innerHTML = '';
         // Add Welcome Message
@@ -369,6 +467,12 @@ function startNewChat() {
             </div>
         `;
         chatContainer.appendChild(welcomeDiv);
+    }
+
+    // Close mobile menu if open
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar.classList.contains('active')) {
+        sidebar.classList.remove('active');
     }
 }
 
