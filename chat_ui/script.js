@@ -90,6 +90,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+// Define globally
+window.closeLoginOverlay = function () {
+    console.log("Back to chat clicked (Global)");
+    const overlay = document.getElementById('login-overlay');
+    if (overlay) overlay.style.display = 'none';
+};
+
 // Define globally so it can be called from HTML if needed
 window.openLoginOverlay = function () {
     console.log("Login button clicked (Global)");
