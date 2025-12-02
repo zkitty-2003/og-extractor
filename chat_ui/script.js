@@ -15,8 +15,7 @@ const mobileMenuBtn = document.getElementById('mobile-menu-btn');
 const sidebar = document.getElementById('sidebar');
 const newChatBtn = document.getElementById('new-chat-btn');
 const userProfile = document.getElementById('user-profile');
-const gIdOnload = document.getElementById('g_id_onload');
-const gIdSignin = document.querySelector('.g_id_signin');
+const loginBtn = document.getElementById('login-btn');
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -58,11 +57,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     newChatBtn.addEventListener('click', startNewChat);
 
+    // Login button handler
+    loginBtn.addEventListener('click', handleLogin);
+
     // Logout handler
     document.getElementById('logout-btn').addEventListener('click', handleLogout);
 });
 
-// Google Sign-In Callback
+// Google Sign-In Callback (kept for future use)
 function handleCredentialResponse(response) {
     if (response.credential) {
         // Send token to backend
@@ -84,24 +86,41 @@ function handleCredentialResponse(response) {
     }
 }
 
+function handleLogin() {
+    // Trigger Google Sign-In programmatically
+    google.accounts.id.initialize({
+        client_id: "888682176364-95k6bep0ajble7a48romjeui850dptg0.apps.googleusercontent.com",
+        callback: handleCredentialResponse
+    });
+
+    google.accounts.id.prompt((notification) => {
+        if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+            // Fallback: show One Tap dialog
+            document.body.innerHTML += `
+                <div id="g_id_onload"
+                    data-client_id="888682176364-95k6bep0ajble7a48romjeui850dptg0.apps.googleusercontent.com"
+                    data-callback="handleCredentialResponse"
+                    data-auto_prompt="true">
+                </div>
+            `;
+        }
+    });
+}
+
 function updateUIForLogin() {
     if (currentUser) {
         document.getElementById('user-name').textContent = currentUser.name;
         document.getElementById('user-email').textContent = currentUser.email;
         document.getElementById('user-avatar').src = currentUser.picture;
         userProfile.style.display = 'flex';
-        gIdOnload.style.display = 'none';
-        gIdSignin.style.display = 'none';
+        loginBtn.style.display = 'none';
     }
 }
 
 function handleLogout() {
     currentUser = null;
     userProfile.style.display = 'none';
-    gIdOnload.style.display = 'block';
-    gIdSignin.style.display = 'block';
-    // Reload to reset Google button state if needed
-    location.reload();
+    loginBtn.style.display = 'flex';
 }
 
 // Chat Functions
