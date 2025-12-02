@@ -1,130 +1,21 @@
-// Global state
-let currentUser = null;
-let chatHistory = [];
-let apiKey = localStorage.getItem('openrouter_api_key') || '';
-
-// DOM Elements
-const messageInput = document.getElementById('message-input');
-const sendBtn = document.getElementById('send-btn');
-const chatContainer = document.getElementById('chat-container');
-const settingsBtn = document.getElementById('settings-btn');
-const apiKeyModal = document.getElementById('api-key-modal');
-const saveApiKeyBtn = document.getElementById('save-api-key');
-const apiKeyInput = document.getElementById('api-key-input');
-const mobileMenuBtn = document.getElementById('mobile-menu-btn');
-const sidebar = document.getElementById('sidebar');
-const newChatBtn = document.getElementById('new-chat-btn');
-const userProfile = document.getElementById('user-profile');
-const loginBtn = document.getElementById('login-btn');
-
-// Initialize
-document.addEventListener('DOMContentLoaded', () => {
-    // Load saved API key
-    if (apiKey) {
-        apiKeyInput.value = apiKey;
-    }
-
-    // Event Listeners
-    sendBtn.addEventListener('click', sendMessage);
-    messageInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            sendMessage();
+// Send token to backend
+fetch('/auth/google', {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ token: response.credential })
+})
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            currentUser = data.user;
+            updateUIForLogin();
+            // Keep overlay open to show profile view
         }
-    });
+    })
+    .catch(err => console.error('Login error:', err));
 
-    // Auto-resize textarea
-    messageInput.addEventListener('input', function () {
-        this.style.height = 'auto';
-        this.style.height = (this.scrollHeight) + 'px';
-        if (this.value === '') {
-            this.style.height = 'auto';
-        }
-    });
-
-    settingsBtn.addEventListener('click', () => {
-        apiKeyModal.style.display = 'block';
-    });
-
-    saveApiKeyBtn.addEventListener('click', () => {
-        const key = apiKeyInput.value.trim();
-        if (key) {
-            apiKey = key;
-            localStorage.setItem('openrouter_api_key', key);
-            apiKeyModal.style.display = 'none';
-            alert('API Key saved!');
-        }
-    });
-
-    // Close modal when clicking outside
-    window.addEventListener('click', (e) => {
-        if (e.target === apiKeyModal) {
-            apiKeyModal.style.display = 'none';
-        }
-    });
-
-    mobileMenuBtn.addEventListener('click', () => {
-        sidebar.classList.toggle('active');
-    });
-
-    newChatBtn.addEventListener('click', startNewChat);
-
-    // Login button handler
-    loginBtn.addEventListener('click', () => {
-        document.getElementById('login-overlay').style.display = 'flex';
-        // Render Google Button inside the overlay
-        try {
-            if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
-                // Initialize Google Sign-In
-                google.accounts.id.initialize({
-                    client_id: "888682176364-95k6bep0ajble7a48romjeui850dptg0.apps.googleusercontent.com",
-                    callback: handleCredentialResponse
-                });
-
-                google.accounts.id.renderButton(
-                    document.getElementById("google-login-container"),
-                    { theme: "outline", size: "large", width: 250 }
-                );
-            } else {
-                console.error("Google Sign-In library not loaded.");
-                document.getElementById("google-login-container").innerHTML = '<p style="color: red;">Error loading Google Sign-In. Please refresh the page.</p>';
-            }
-        } catch (error) {
-            console.error("Error rendering Google button:", error);
-        }
-    });
-
-    // Back to Chat handler
-    document.getElementById('back-to-chat-btn').addEventListener('click', () => {
-        document.getElementById('login-overlay').style.display = 'none';
-    });
-
-    // Logout handler
-    document.getElementById('logout-btn').addEventListener('click', handleLogout);
-});
-
-// Google Sign-In Callback
-function handleCredentialResponse(response) {
-    if (response.credential) {
-        // Send token to backend
-        fetch('/auth/google', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ token: response.credential })
-        })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    currentUser = data.user;
-                    updateUIForLogin();
-                    document.getElementById('login-overlay').style.display = 'none';
-                }
-            })
-            .catch(err => console.error('Login error:', err));
-    }
-}
 
 function updateUIForLogin() {
     if (currentUser) {
