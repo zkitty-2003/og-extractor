@@ -3,6 +3,7 @@ let currentUser = null;
 let chatHistory = []; // Current chat messages
 let apiKey = localStorage.getItem('openrouter_api_key') || '';
 let currentChatId = null; // ID of the current active chat session
+let isBusy = false; // Flag to prevent multiple requests
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -360,118 +361,12 @@ function renderMessageToUI(text, sender, id = null) {
     scrollToBottom();
 }
 
-// --- End Chat History Logic ---
-
-// Chat Functions
-async function sendMessage() {
-    const messageInput = document.getElementById('message-input');
-    const apiKeyModal = document.getElementById('api-key-modal');
-
-    const text = messageInput.value.trim();
-    if (!text) return;
-
-    if (!apiKey) {
-        alert('Please set your OpenRouter API Key in Settings first.');
-        if (apiKeyModal) apiKeyModal.style.display = 'block';
-        return;
-    }
-
-    // Add User Message
-    appendMessage(text, 'user');
-    messageInput.value = '';
-
-    // Create AI Message Placeholder
-    const aiMsgId = 'ai-msg-' + Date.now();
-    appendMessage('', 'ai', aiMsgId); // Empty content initially
-    const aiMsgElement = document.getElementById(aiMsgId);
-    const contentDiv = aiMsgElement.querySelector('.content');
-
-    // Show Loading/Typing initially
-    contentDiv.innerHTML = '<i class="fas fa-ellipsis-h fa-fade"></i>';
-
-    try {
-        const response = await fetch('/chat', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`
-            },
-            body: JSON.stringify({
-                message: text,
-                history: chatHistory.map(msg => ({ role: msg.role, content: msg.content })),
-                model: "google/gemma-3-27b-it:free"
-            })
-        });
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let fullText = '';
-
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            const chunk = decoder.decode(value, { stream: true });
-
-            // Handle potential error JSON in stream
-            if (chunk.startsWith('{"error":')) {
-                try {
-                    const errData = JSON.parse(chunk);
-                    fullText = "Error: " + errData.error;
-                } catch (e) {
-                    fullText += chunk;
-                }
-            } else {
-                fullText += chunk;
-            }
-
-            // Update UI
-            // Check for Thinking Process
-            const thinkingMatch = fullText.match(/<thought>([\s\S]*?)<\/thought>/);
-            let thinkingHtml = '';
-            let mainText = fullText;
-
-            if (thinkingMatch) {
-                const thinkingContent = thinkingMatch[1].trim();
-                thinkingHtml = `
-                    <div class="thinking-process">
-                        <details open>
-                            <summary>Thinking Process</summary>
-                            <p>${escapeHtml(thinkingContent).replace(/\n/g, '<br>')}</p>
-                        </details>
-                    </div>
-                `;
-                mainText = fullText.replace(thinkingMatch[0], '').trim();
-            } else if (fullText.includes('<thought>')) {
-                // Partial thought tag, don't render yet or render partially
-                // For simplicity, we just render what we have, but it might look broken temporarily
-            }
-
-            contentDiv.innerHTML = thinkingHtml + marked.parse(mainText);
-            scrollToBottom();
-        }
-
-        // Final update to state
-        chatHistory.push({ role: "assistant", content: fullText });
-        saveChatHistory();
-
-    } catch (error) {
-        contentDiv.textContent = 'Error: ' + error.message;
-        chatHistory.push({ role: "assistant", content: 'Error: ' + error.message });
-        saveChatHistory();
-    }
+// Save History only if it's a user message or completed AI message (not placeholder)
+if (!id) {
+    // Update State
+    chatHistory.push({ role: sender === 'user' ? "user" : "assistant", content: text });
+    saveChatHistory();
 }
-
-function appendMessage(text, sender, id = null) {
-    // Render UI
-    renderMessageToUI(text, sender, id);
-
-    // Save History only if it's a user message or completed AI message (not placeholder)
-    if (!id) {
-        // Update State
-        chatHistory.push({ role: sender === 'user' ? "user" : "assistant", content: text });
-        saveChatHistory();
-    }
 }
 
 function scrollToBottom() {
@@ -514,4 +409,33 @@ function escapeHtml(text) {
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
         .replace(/\n/g, "<br>");
+}
+
+function setBusyState(busy) {
+    isBusy = busy;
+    const messageInput = document.getElementById('message-input');
+    const sendBtn = document.getElementById('send-btn');
+
+    if (messageInput) {
+        messageInput.disabled = busy;
+        if (busy) {
+            messageInput.placeholder = "AI is thinking...";
+        } else {
+            messageInput.placeholder = "Send a message...";
+            messageInput.focus();
+        }
+    }
+
+    if (sendBtn) {
+        sendBtn.disabled = busy;
+        if (busy) {
+            sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            sendBtn.style.opacity = '0.7';
+            sendBtn.style.cursor = 'not-allowed';
+        } else {
+            sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i>';
+            sendBtn.style.opacity = '1';
+            sendBtn.style.cursor = 'pointer';
+        }
+    }
 }
