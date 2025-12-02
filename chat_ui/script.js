@@ -73,10 +73,19 @@ document.addEventListener('DOMContentLoaded', () => {
     loginBtn.addEventListener('click', () => {
         document.getElementById('login-overlay').style.display = 'flex';
         // Render Google Button inside the overlay
-        google.accounts.id.renderButton(
-            document.getElementById("google-login-container"),
-            { theme: "outline", size: "large", width: 250 }
-        );
+        try {
+            if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
+                google.accounts.id.renderButton(
+                    document.getElementById("google-login-container"),
+                    { theme: "outline", size: "large", width: 250 }
+                );
+            } else {
+                console.error("Google Sign-In library not loaded.");
+                document.getElementById("google-login-container").innerHTML = '<p style="color: red;">Error loading Google Sign-In. Please refresh the page.</p>';
+            }
+        } catch (error) {
+            console.error("Error rendering Google button:", error);
+        }
     });
 
     // Back to Chat handler
