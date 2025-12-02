@@ -6,6 +6,7 @@ let currentChatId = null; // ID of the current active chat session
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
+    console.log("Chat UI v15 loaded - Streaming Enabled");
     // DOM Elements
     const messageInput = document.getElementById('message-input');
     const sendBtn = document.getElementById('send-btn');
