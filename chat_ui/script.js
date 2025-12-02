@@ -95,9 +95,18 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Logout handler
-    const logoutBtn = document.getElementById('logout-btn');
-    if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
+    // User Profile Click Handler (Sidebar)
+    if (userProfile) {
+        userProfile.addEventListener('click', () => {
+            // Update UI just in case (though it should be updated on login)
+            updateUIForLogin();
+            window.openLoginOverlay();
+        });
+    }
+
+    // Logout handler (Overlay only now)
+    // const logoutBtn = document.getElementById('logout-btn'); // Removed from sidebar
+    // if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
 });
 
 // Define globally so it can be called from HTML if needed
@@ -105,6 +114,12 @@ window.openLoginOverlay = function () {
     console.log("Login button clicked (Global)");
     const overlay = document.getElementById('login-overlay');
     if (overlay) overlay.style.display = 'flex';
+
+    // If already logged in, ensure profile view is shown
+    if (currentUser) {
+        updateUIForLogin();
+        return; // Skip rendering Google button
+    }
 
     // Render Google Button inside the overlay
     try {
