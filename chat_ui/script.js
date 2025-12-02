@@ -283,10 +283,94 @@ function renderHistoryList(history) {
     history.forEach(session => {
         const item = document.createElement('div');
         item.className = 'history-item';
-        item.innerHTML = `<span class="title">${escapeHtml(session.title)}</span>`;
-        item.addEventListener('click', () => loadChatSession(session));
+        item.innerHTML = `
+            <span class="title">${escapeHtml(session.title)}</span>
+            <i class="fas fa-ellipsis-h menu-btn" onclick="toggleHistoryMenu(event, '${session.id}')"></i>
+            <div id="menu-${session.id}" class="history-menu">
+                <div class="menu-item" onclick="renameChat('${session.id}')">
+                    <i class="fas fa-edit"></i> Rename
+                </div>
+                <div class="menu-item delete" onclick="deleteChat('${session.id}')">
+                    <i class="fas fa-trash-alt"></i> Delete
+                </div>
+            </div>
+        `;
+        item.addEventListener('click', (e) => {
+            // Prevent loading chat if clicking menu or menu items
+            if (!e.target.closest('.menu-btn') && !e.target.closest('.history-menu')) {
+                loadChatSession(session);
+            }
+        });
         historyList.appendChild(item);
     });
+}
+
+// Global click to close menus
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('.menu-btn') && !e.target.closest('.history-menu')) {
+        document.querySelectorAll('.history-menu').forEach(menu => {
+            menu.classList.remove('show');
+            // Remove active class from buttons
+            const btn = menu.previousElementSibling;
+            if (btn && btn.classList.contains('menu-btn')) {
+                btn.classList.remove('active');
+            }
+        });
+    }
+});
+
+function toggleHistoryMenu(event, chatId) {
+    event.stopPropagation();
+    // Close other menus
+    document.querySelectorAll('.history-menu').forEach(menu => {
+        if (menu.id !== `menu-${chatId}`) {
+            menu.classList.remove('show');
+            const btn = menu.previousElementSibling;
+            if (btn) btn.classList.remove('active');
+        }
+    });
+
+    const menu = document.getElementById(`menu-${chatId}`);
+    const btn = event.target;
+
+    if (menu) {
+        menu.classList.toggle('show');
+        btn.classList.toggle('active');
+    }
+}
+
+function renameChat(chatId) {
+    const key = getStorageKey();
+    let history = JSON.parse(localStorage.getItem(key) || '[]');
+    const session = history.find(h => h.id === chatId);
+
+    if (session) {
+        const newTitle = prompt("Enter new chat name:", session.title);
+        if (newTitle && newTitle.trim()) {
+            session.title = newTitle.trim();
+            localStorage.setItem(key, JSON.stringify(history));
+            renderHistoryList(history);
+        }
+    }
+    // Close menu
+    const menu = document.getElementById(`menu-${chatId}`);
+    if (menu) menu.classList.remove('show');
+}
+
+function deleteChat(chatId) {
+    if (confirm("Are you sure you want to delete this chat?")) {
+        const key = getStorageKey();
+        let history = JSON.parse(localStorage.getItem(key) || '[]');
+        history = history.filter(h => h.id !== chatId);
+        localStorage.setItem(key, JSON.stringify(history));
+
+        renderHistoryList(history);
+
+        // If deleted current chat, clear UI or load another
+        if (currentChatId === chatId) {
+            startNewChat();
+        }
+    }
 }
 
 function loadChatSession(session) {
