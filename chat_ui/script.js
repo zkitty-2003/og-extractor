@@ -361,12 +361,16 @@ function renderMessageToUI(text, sender, id = null) {
     scrollToBottom();
 }
 
-// Save History only if it's a user message or completed AI message (not placeholder)
-if (!id) {
-    // Update State
-    chatHistory.push({ role: sender === 'user' ? "user" : "assistant", content: text });
-    saveChatHistory();
-}
+function appendMessage(text, sender, id = null) {
+    // Render UI
+    renderMessageToUI(text, sender, id);
+
+    // Save History only if it's a user message or completed AI message (not placeholder)
+    if (!id) {
+        // Update State
+        chatHistory.push({ role: sender === 'user' ? "user" : "assistant", content: text });
+        saveChatHistory();
+    }
 }
 
 function scrollToBottom() {
