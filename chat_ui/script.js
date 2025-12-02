@@ -128,11 +128,26 @@ function handleCredentialResponse(response) {
 
 function updateUIForLogin() {
     if (currentUser) {
+        // Update Sidebar Profile
         document.getElementById('user-name').textContent = currentUser.name;
         document.getElementById('user-email').textContent = currentUser.email;
         document.getElementById('user-avatar').src = currentUser.picture;
         userProfile.style.display = 'flex';
         loginBtn.style.display = 'none';
+
+        // Update Overlay Content to Profile View
+        const loginContent = document.querySelector('.login-content');
+        loginContent.innerHTML = `
+            <h1>User Profile</h1>
+            <img src="${currentUser.picture}" class="profile-avatar-large" alt="Profile">
+            <div class="profile-name-large">${currentUser.name}</div>
+            <div class="profile-email-large">${currentUser.email}</div>
+            <p style="margin-top: 10px; color: #fff;">Welcome back!</p>
+            <button id="overlay-logout-btn" class="sign-out-btn">Sign Out</button>
+        `;
+
+        // Add Logout Handler
+        document.getElementById('overlay-logout-btn').addEventListener('click', handleLogout);
     }
 }
 
@@ -140,6 +155,26 @@ function handleLogout() {
     currentUser = null;
     userProfile.style.display = 'none';
     loginBtn.style.display = 'flex';
+
+    // Reset Overlay to Login View
+    const loginContent = document.querySelector('.login-content');
+    loginContent.innerHTML = `
+        <h1>User Profile</h1>
+        <p>Sign in to your account to save your chat history.</p>
+        <div id="google-login-container"></div>
+    `;
+
+    // Re-render Google Button
+    if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
+        google.accounts.id.renderButton(
+            document.getElementById("google-login-container"),
+            { theme: "outline", size: "large", width: 250 }
+        );
+    }
+
+    // Close Overlay (optional, or keep open to let them login again)
+    // document.getElementById('login-overlay').style.display = 'none'; 
+    // Reload page to clear state completely
     location.reload();
 }
 
