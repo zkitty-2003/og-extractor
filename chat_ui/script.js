@@ -27,6 +27,9 @@ document.addEventListener('DOMContentLoaded', () => {
         apiKeyInput.value = apiKey;
     }
 
+    // Force hide modal on load to prevent ghosting
+    if (apiKeyModal) apiKeyModal.style.display = 'none';
+
     // Load Chat History
     loadChatHistory();
 
