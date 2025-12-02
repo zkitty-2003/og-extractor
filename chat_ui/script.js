@@ -463,11 +463,8 @@ async function sendMessage() {
     const text = messageInput.value.trim();
     if (!text) return;
 
-    if (!apiKey) {
-        alert('Please set your OpenRouter API Key in Settings first.');
-        if (apiKeyModal) apiKeyModal.style.display = 'block';
-        return;
-    }
+    // API Key is now optional (handled by backend fallback)
+    // if (!apiKey) { ... } -> Removed check
 
     // Lock UI
     setBusyState(true);
@@ -486,12 +483,18 @@ async function sendMessage() {
     contentDiv.innerHTML = '<i class="fas fa-ellipsis-h fa-fade"></i>';
 
     try {
+        const headers = {
+            'Content-Type': 'application/json'
+        };
+
+        // Only send Authorization header if user has a custom key
+        if (apiKey) {
+            headers['Authorization'] = `Bearer ${apiKey}`;
+        }
+
         const response = await fetch('/chat', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`
-            },
+            headers: headers,
             body: JSON.stringify({
                 message: text,
                 history: chatHistory.map(msg => ({ role: msg.role, content: msg.content })),
