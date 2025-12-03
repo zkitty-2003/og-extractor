@@ -1,3 +1,82 @@
+:root {
+    /* Base variables (Default Theme) */
+    --sidebar-bg: #202123;
+    --main-bg: #343541;
+    --input-bg: #40414f;
+    --text-color: #ececf1;
+    --user-msg-bg: #343541;
+    --ai-msg-bg: #444654;
+    --border-color: #4d4d4f;
+    --accent-color: #10a37f;
+    --hover-color: #2a2b32;
+    --scrollbar-track: #202123;
+    --scrollbar-thumb: #4d4d4f;
+}
+
+/* Ocean Theme */
+[data-theme="ocean"] {
+    --sidebar-bg: #0f172a;
+    --main-bg: #1e293b;
+    --input-bg: #334155;
+    --text-color: #f1f5f9;
+    --user-msg-bg: #1e293b;
+    --ai-msg-bg: #334155;
+    --border-color: #475569;
+    --accent-color: #0ea5e9;
+    --hover-color: #1e293b;
+    --scrollbar-track: #0f172a;
+    --scrollbar-thumb: #475569;
+}
+
+/* Sunset Theme */
+[data-theme="sunset"] {
+    --sidebar-bg: #2a1b2d;
+    --main-bg: #4a2b38;
+    --input-bg: #683648;
+    --text-color: #ffe4e6;
+    --user-msg-bg: #4a2b38;
+    --ai-msg-bg: #683648;
+    --border-color: #831843;
+    --accent-color: #db2777;
+    --hover-color: #5d3444;
+    --scrollbar-track: #2a1b2d;
+    --scrollbar-thumb: #831843;
+}
+
+/* Forest Theme */
+[data-theme="forest"] {
+    --sidebar-bg: #1a2f1a;
+    --main-bg: #253825;
+    --input-bg: #3a523a;
+    --text-color: #e2e8f0;
+    --user-msg-bg: #253825;
+    --ai-msg-bg: #3a523a;
+    --border-color: #4a6b4a;
+    --accent-color: #22c55e;
+    --hover-color: #2f4f2f;
+    --scrollbar-track: #1a2f1a;
+    --scrollbar-thumb: #4a6b4a;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Sarabun', sans-serif;
+    background-color: var(--main-bg);
+    color: var(--text-color);
+    height: 100vh;
+    overflow: hidden;
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+#root {
+    height: 100%;
+}
+
 .app-container {
     display: flex;
     height: 100%;
