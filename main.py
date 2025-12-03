@@ -97,21 +97,6 @@ class GoogleAuthRequest(BaseModel):
 async def google_login(request: GoogleAuthRequest):
     try:
         # Verify the token
-        id_info = id_token.verify_oauth2_token(
-            request.token, 
-            google_requests.Request(),
-            audience="888682176364-95k6bep0ajble7a48romjeui850dptg0.apps.googleusercontent.com"
-        )
-
-        return {
-            "success": True,
-
-@app.post("/chat")
-async def chat_with_ai(
-    request: ChatRequest,
-    creds: Optional[HTTPAuthorizationCredentials] = Depends(security)
-):
-    # 1. Determine API Key
     api_key = None
     
     # Check if user provided a key
