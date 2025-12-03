@@ -105,23 +105,6 @@ async def google_login(request: GoogleAuthRequest):
 
         return {
             "success": True,
-            "user": {
-                "email": id_info['email'],
-                "name": id_info.get('name'),
-                "picture": id_info.get('picture')
-            }
-        }
-    except ValueError:
-        raise HTTPException(status_code=401, detail="Invalid Google Token")
-
-# ==============================
-# 3) Chat API (OpenRouter)
-# ==============================
-
-class ChatRequest(BaseModel):
-    message: str
-    model: Optional[str] = "google/gemma-3-27b-it:free"
-    history: Optional[List[Dict[str, str]]] = None
 
 @app.post("/chat")
 async def chat_with_ai(
