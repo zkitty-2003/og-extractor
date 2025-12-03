@@ -72,26 +72,28 @@
     --shadow-color: rgba(74, 20, 140, 0.1);
 }
 
-/* Forest Theme (Nature & Calm) */
+/* Forest Theme (Golden Meadow - Green & Orange) */
 [data-theme="forest"] {
-    --sidebar-bg: #142615;
-    --main-bg: #0f1c10;
-    --input-bg: #1a2f1a;
-    --text-color: #e2e8f0;
-    /* Slate 200 */
-    --user-msg-bg: #14532d;
-    /* Green 900 */
-    --ai-msg-bg: #1a2f1a;
-    --border-color: #166534;
-    /* Green 800 */
-    --accent-color: #4ade80;
-    /* Green 400 */
-    --hover-color: #1a2f1a;
-    --scrollbar-track: #142615;
-    --scrollbar-thumb: #166534;
-    --modal-bg: #142615;
-    --modal-text: #e2e8f0;
-    --shadow-color: rgba(74, 222, 128, 0.2);
+    --sidebar-bg: #DCEDC8;
+    /* Light Green (Hills) */
+    --main-bg: #F1F8E9;
+    /* Very Light Green (Meadow) */
+    --input-bg: #FFFFFF;
+    --text-color: #1B5E20;
+    /* Dark Green Text */
+    --user-msg-bg: #FFCC80;
+    /* Golden Orange (Sun/Flowers) */
+    --ai-msg-bg: #FFFFFF;
+    --border-color: #AED581;
+    /* Green Border */
+    --accent-color: #EF6C00;
+    /* Deep Orange Accent */
+    --hover-color: #AED581;
+    --scrollbar-track: #DCEDC8;
+    --scrollbar-thumb: #8BC34A;
+    --modal-bg: #F1F8E9;
+    --modal-text: #1B5E20;
+    --shadow-color: rgba(27, 94, 32, 0.1);
 }
 
 * {
@@ -771,5 +773,6 @@ textarea {
 }
 
 .theme-btn[data-theme-value="forest"] {
-    background-color: #22c55e;
+    background: linear-gradient(135deg, #DCEDC8, #FFCC80);
+    border: 1px solid #EF6C00;
 }
