@@ -48,29 +48,28 @@
     color: #073B4C;
 }
 
-/* Sunset Theme (Pastel Pink - Sweet & Soft) */
+/* Sunset Theme (Dreamy Pastel - Pink & Blue) */
 [data-theme="sunset"] {
-    --sidebar-bg: #fdf2f8;
-    /* Pink 50 */
-    --main-bg: #fff1f2;
-    /* Rose 50 */
-    --input-bg: #ffffff;
-    --text-color: #881337;
-    /* Rose 900 */
-    --user-msg-bg: #fbcfe8;
-    /* Pink 200 */
-    --ai-msg-bg: #ffffff;
-    --border-color: #f9a8d4;
-    /* Pink 300 */
-    --accent-color: #f472b6;
-    /* Pink 400 */
-    --hover-color: #fce7f3;
-    /* Pink 100 */
-    --scrollbar-track: #fdf2f8;
-    --scrollbar-thumb: #f9a8d4;
-    --modal-bg: #fff1f2;
-    --modal-text: #881337;
-    --shadow-color: rgba(244, 114, 182, 0.2);
+    --sidebar-bg: #FFF0F5;
+    /* LavenderBlush (Pinkish Sky) */
+    --main-bg: #F3E5F5;
+    /* Purple 50 (Dreamy Water) */
+    --input-bg: #FFFFFF;
+    --text-color: #4A148C;
+    /* Dark Purple Text */
+    --user-msg-bg: #81D4FA;
+    /* Light Blue (Water reflection) */
+    --ai-msg-bg: #FFFFFF;
+    --border-color: #E1BEE7;
+    /* Purple 100 */
+    --accent-color: #FF4081;
+    /* Pink Accent (Sun) */
+    --hover-color: #E1BEE7;
+    --scrollbar-track: #FFF0F5;
+    --scrollbar-thumb: #CE93D8;
+    --modal-bg: #F3E5F5;
+    --modal-text: #4A148C;
+    --shadow-color: rgba(74, 20, 140, 0.1);
 }
 
 /* Forest Theme (Nature & Calm) */
@@ -767,7 +766,8 @@ textarea {
 }
 
 .theme-btn[data-theme-value="sunset"] {
-    background-color: #fbcfe8;
+    background: linear-gradient(135deg, #FF4081, #81D4FA);
+    border: 1px solid #E1BEE7;
 }
 
 .theme-btn[data-theme-value="forest"] {
