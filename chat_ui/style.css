@@ -16,29 +16,36 @@
     --shadow-color: rgba(0, 0, 0, 0.5);
 }
 
-/* Ocean Theme (Light - Fresh & Breezy) */
+/* Ocean Theme (Beach & Sand - Custom Request) */
 [data-theme="ocean"] {
-    --sidebar-bg: #f0f9ff;
-    /* Sky 50 */
-    --main-bg: #ffffff;
-    --input-bg: #e0f2fe;
-    /* Sky 100 */
-    --text-color: #0f172a;
-    /* Slate 900 */
-    --user-msg-bg: #ccfbf1;
-    /* Teal 100 */
-    --ai-msg-bg: #f1f5f9;
-    /* Slate 100 */
-    --border-color: #bae6fd;
-    /* Sky 200 */
-    --accent-color: #0ea5e9;
-    /* Sky 500 */
-    --hover-color: #e0f2fe;
-    --scrollbar-track: #f0f9ff;
-    --scrollbar-thumb: #bae6fd;
-    --modal-bg: #ffffff;
-    --modal-text: #0f172a;
-    --shadow-color: rgba(14, 165, 233, 0.2);
+    --sidebar-bg: #FBD2B0;
+    /* Peach/Sand Sidebar */
+    --main-bg: #FDF4E6;
+    /* Sand/Cream Background */
+    --input-bg: #FFF3E5;
+    /* Lighter Sand Input */
+    --text-color: #263238;
+    /* Dark Blue-Grey Text */
+    --user-msg-bg: #5CC6D0;
+    /* Teal User Bubble */
+    --ai-msg-bg: #FFFFFF;
+    /* White AI Bubble */
+    --border-color: #F5C6A5;
+    /* Darker Sand Border */
+    --accent-color: #FF8A80;
+    /* Coral/Salmon Buttons */
+    --hover-color: #F5C6A5;
+    /* Hover state */
+    --scrollbar-track: #FBD2B0;
+    --scrollbar-thumb: #FF8A80;
+    --modal-bg: #FFF3E5;
+    --modal-text: #263238;
+    --shadow-color: rgba(38, 50, 56, 0.1);
+}
+
+/* Specific override for User Message Text Color in Ocean Theme */
+[data-theme="ocean"] .user-message {
+    color: #073B4C;
 }
 
 /* Sunset Theme (Pastel Pink - Sweet & Soft) */
@@ -755,11 +762,12 @@ textarea {
 }
 
 .theme-btn[data-theme-value="ocean"] {
-    background-color: #0ea5e9;
+    background: linear-gradient(135deg, #5CC6D0, #FFE8D2);
+    border: 1px solid #FF8A80;
 }
 
 .theme-btn[data-theme-value="sunset"] {
-    background-color: #db2777;
+    background-color: #fbcfe8;
 }
 
 .theme-btn[data-theme-value="forest"] {
