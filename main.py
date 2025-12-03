@@ -9,6 +9,7 @@ from typing import Optional, List, Dict
 from fastapi.middleware.cors import CORSMiddleware
 import json
 import os
+import uuid
 
 app = FastAPI()
 # auto_error=False allows the dependency to return None instead of raising 403
@@ -97,6 +98,60 @@ class GoogleAuthRequest(BaseModel):
 async def google_login(request: GoogleAuthRequest):
     try:
         # Verify the token
+        id_info = id_token.verify_oauth2_token(
+            request.token, 
+            google_requests.Request(),
+            audience="888682176364-95k6bep0ajble7a48romjeui850dptg0.apps.googleusercontent.com"
+        )
+
+        return {
+            "success": True,
+            "user": {
+                "email": id_info['email'],
+                "name": id_info.get('name'),
+                "picture": id_info.get('picture')
+            }
+        }
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Invalid Google Token")
+
+# ==============================
+# 3) Share Chat API
+# ==============================
+
+# In-memory storage for shared chats (will be lost on restart)
+SHARED_CHATS: Dict[str, List[Dict[str, str]]] = {}
+
+class ShareRequest(BaseModel):
+    messages: List[Dict[str, str]]
+
+@app.post("/share")
+async def share_chat(request: ShareRequest):
+    share_id = str(uuid.uuid4())
+    SHARED_CHATS[share_id] = request.messages
+    return {"id": share_id}
+
+@app.get("/share/{share_id}")
+async def get_shared_chat(share_id: str):
+    if share_id not in SHARED_CHATS:
+        raise HTTPException(status_code=404, detail="Shared chat not found")
+    return {"messages": SHARED_CHATS[share_id]}
+
+# ==============================
+# 4) Chat API (OpenRouter)
+# ==============================
+
+class ChatRequest(BaseModel):
+    message: str
+    model: Optional[str] = "google/gemma-3-27b-it:free"
+    history: Optional[List[Dict[str, str]]] = None
+
+@app.post("/chat")
+async def chat_with_ai(
+    request: ChatRequest,
+    creds: Optional[HTTPAuthorizationCredentials] = Depends(security)
+):
+    # 1. Determine API Key
     api_key = None
     
     # Check if user provided a key
