@@ -412,18 +412,6 @@ textarea {
 
 .modal-content button {
     background: var(--accent-color);
-    color: white;
-    border: none;
-    padding: 12px 25px;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 1rem;
-
-    .message .content h3 {
-        margin-top: 10px;
-        margin-bottom: 10px;
-        font-weight: 600;
-    }
 
     .message .content p {
         margin-bottom: 10px;
