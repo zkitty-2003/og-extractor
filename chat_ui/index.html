@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>ABDUL Chat</title>
-    <link rel="stylesheet" href="/static/style.css?v=13">
+    <link rel="stylesheet" href="/static/style.css?v=14">
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -45,14 +45,75 @@
                         <button class="theme-btn active" data-theme-value="default" title="Default"></button>
                         <button class="theme-btn" data-theme-value="ocean" title="Ocean"></button>
                         <button class="theme-btn" data-theme-value="sunset" title="Sunset"></button>
-                        <div class="login-content">
-                            <h1>User Profile</h1>
-                            <p>Sign in to your account to save your chat history.</p>
-                            <div id="google-login-container"></div>
+                        <button class="theme-btn" data-theme-value="golden" title="Golden"></button>
+                        <button class="theme-btn" data-theme-value="galaxy" title="Galaxy"></button>
+                        <button class="theme-btn" data-theme-value="moonlight" title="Moonlight"></button>
+                    </div>
+                </div>
+
+                <!-- Custom Login Button -->
+                <button id="login-btn" class="login-btn" onclick="openLoginOverlay()">
+                    <i class="fas fa-user"></i> Log In
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Chat Header (Visible on Mobile & Desktop) -->
+            <div class="chat-header">
+                <div class="header-left">
+                    <i class="fas fa-bars" id="mobile-menu-btn"></i>
+                    <span>ABDUL Chat</span>
+                </div>
+                <div class="header-right">
+                    <button id="share-btn" class="icon-btn" title="Share Chat">
+                        <i class="fas fa-share-alt"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Chat Container -->
+            <div class="chat-container" id="chat-container">
+                <!-- Welcome Message -->
+                <div class="message ai-message">
+                    <div class="avatar">A</div>
+                    <div class="bubble">
+                        <div class="content">
+                            สวัสดีครับ มีอะไรให้พี่ช่วยไหม
                         </div>
                     </div>
+                </div>
+            </div>
 
-                    <script src="/static/script.js?v=32"></script>
+            <!-- Input Area -->
+            <div class="input-area">
+                <div class="input-wrapper">
+                    <textarea id="message-input" placeholder="Send a message..." rows="1"></textarea>
+                    <button id="send-btn">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+                <div class="disclaimer">ABDUL Chat may produce inaccurate information.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Login Overlay -->
+    <div id="login-overlay" class="login-overlay" style="display: none;">
+        <div class="login-header">
+            <button id="back-to-chat-btn" onclick="closeLoginOverlay()">
+                <i class="fas fa-arrow-left"></i> Back to Chat
+            </button>
+        </div>
+        <div class="login-content">
+            <h1>User Profile</h1>
+            <p>Sign in to your account to save your chat history.</p>
+            <div id="google-login-container"></div>
+        </div>
+    </div>
+
+    <script src="/static/script.js?v=33"></script>
 </body>
 
 </html>
