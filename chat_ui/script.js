@@ -710,3 +710,40 @@ async function loadSharedChat(shareId) {
         alert("ไม่พบแชทที่แชร์มา หรือลิงก์หมดอายุแล้ว");
     }
 }
+
+// Theme Management
+function applyTheme(themeName) {
+    document.body.setAttribute('data-theme', themeName);
+
+    // Update active button state
+    document.querySelectorAll('.theme-btn').forEach(btn => {
+        if (btn.dataset.themeValue === themeName) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+}
+
+function saveTheme(themeName) {
+    applyTheme(themeName);
+    localStorage.setItem('chat_theme', themeName);
+}
+
+function initTheme() {
+    const savedTheme = localStorage.getItem('chat_theme') || 'default';
+    applyTheme(savedTheme);
+
+    // Add event listeners to theme buttons
+    document.querySelectorAll('.theme-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const theme = btn.dataset.themeValue;
+            saveTheme(theme);
+        });
+    });
+}
+
+// Initialize theme on load
+document.addEventListener('DOMContentLoaded', () => {
+    initTheme();
+});
