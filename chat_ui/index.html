@@ -45,74 +45,14 @@
                         <button class="theme-btn active" data-theme-value="default" title="Default"></button>
                         <button class="theme-btn" data-theme-value="ocean" title="Ocean"></button>
                         <button class="theme-btn" data-theme-value="sunset" title="Sunset"></button>
-                        <button class="theme-btn" data-theme-value="golden" title="Golden"></button>
-                        <button class="theme-btn" data-theme-value="galaxy" title="Galaxy"></button>
-                        <button class="theme-btn" data-theme-value="moonlight" title="Moonlight"></button>
-                    </div>
-                </div>
-
-                <!-- Share Button -->
-                <button id="share-btn" class="login-btn"
-                    style="margin-bottom: 10px; background-color: var(--input-bg); border: 1px solid var(--border-color); color: var(--text-color);">
-                    <i class="fas fa-share-alt"></i> Share Chat
-                </button>
-
-                <!-- Custom Login Button -->
-                <button id="login-btn" class="login-btn" onclick="openLoginOverlay()">
-                    <i class="fas fa-user"></i> Log In
-                </button>
-            </div>
-        </div>
-
-        <!-- Main Content -->
-        <div class="main-content">
-            <!-- Mobile Header -->
-            <div class="mobile-header">
-                <i class="fas fa-bars" id="mobile-menu-btn"></i>
-                <span>ABDUL Chat</span>
-            </div>
-
-            <!-- Chat Container -->
-            <div class="chat-container" id="chat-container">
-                <!-- Welcome Message -->
-                <div class="message ai-message">
-                    <div class="avatar">A</div>
-                    <div class="bubble">
-                        <div class="content">
-                            สวัสดีครับ มีอะไรให้พี่ช่วยไหม
+                        <div class="login-content">
+                            <h1>User Profile</h1>
+                            <p>Sign in to your account to save your chat history.</p>
+                            <div id="google-login-container"></div>
                         </div>
                     </div>
-                </div>
-            </div>
 
-            <!-- Input Area -->
-            <div class="input-area">
-                <div class="input-wrapper">
-                    <textarea id="message-input" placeholder="Send a message..." rows="1"></textarea>
-                    <button id="send-btn">
-                        <i class="fas fa-paper-plane"></i>
-                    </button>
-                </div>
-                <div class="disclaimer">ABDUL Chat may produce inaccurate information.</div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Login Overlay -->
-    <div id="login-overlay" class="login-overlay" style="display: none;">
-        <div class="login-header">
-            <button id="back-to-chat-btn" onclick="closeLoginOverlay()">
-                <i class="fas fa-arrow-left"></i> Back to Chat
-            </button>
-        </div>
-        <div class="login-content">
-            <h1>User Profile</h1>
-            <p>Sign in to your account to save your chat history.</p>
-            <div id="google-login-container"></div>
-        </div>
-    </div>
-
-    <script src="/static/script.js?v=32"></script>
+                    <script src="/static/script.js?v=32"></script>
 </body>
 
 </html>

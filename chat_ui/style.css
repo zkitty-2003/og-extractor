@@ -236,49 +236,6 @@ body {
     display: flex;
     flex-direction: column;
     position: relative;
-    width: 100%;
-    background-color: var(--main-bg);
-    transition: background-color 0.5s ease;
-}
-
-.mobile-header {
-    display: none;
-    padding: 10px;
-    border-bottom: 1px solid var(--border-color);
-    align-items: center;
-    background-color: var(--main-bg);
-    z-index: 10;
-    gap: 10px;
-    transition: background-color 0.5s ease, border-color 0.5s ease;
-}
-
-.chat-container {
-    flex: 1;
-    overflow-y: auto;
-    padding-bottom: 150px;
-}
-
-.message {
-    display: flex;
-    padding: 20px;
-    gap: 20px;
-    border-bottom: 1px solid var(--border-color);
-    transition: border-color 0.5s ease;
-}
-
-.ai-message {
-    background-color: var(--ai-msg-bg);
-    transition: background-color 0.5s ease;
-}
-
-.user-message {
-    background-color: var(--user-msg-bg);
-    transition: background-color 0.5s ease;
-}
-
-.message .avatar {
-    width: 30px;
-    height: 30px;
     border-radius: 2px;
     display: flex;
     align-items: center;
@@ -461,374 +418,351 @@ textarea {
     border-radius: 5px;
     cursor: pointer;
     font-size: 1rem;
-    font-weight: 600;
-    width: 100%;
-    transition: background-color 0.5s ease;
-}
 
-@media (max-width: 768px) {
-    .sidebar {
-        position: fixed;
+    .message .content h3 {
+        margin-top: 10px;
+        margin-bottom: 10px;
+        font-weight: 600;
+    }
+
+    .message .content p {
+        margin-bottom: 10px;
+    }
+
+    .message .content ul,
+    .message .content ol {
+        margin-left: 20px;
+        margin-bottom: 10px;
+    }
+
+    .message .content code {
+        background-color: rgba(0, 0, 0, 0.1);
+        padding: 2px 4px;
+        border-radius: 3px;
+        font-family: monospace;
+    }
+
+    .message .content pre {
+        background-color: #000;
+        padding: 10px;
+        border-radius: 5px;
+        overflow-x: auto;
+        margin-bottom: 10px;
+    }
+
+    .message .content pre code {
+        background-color: transparent;
+        padding: 0;
+        color: #fff;
+    }
+
+    /* Table Styles */
+    .message .content table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 15px;
+        margin-top: 10px;
+    }
+
+    .message .content th,
+    .message .content td {
+        border: 1px solid var(--border-color);
+        padding: 8px 12px;
+        text-align: left;
+    }
+
+    .message .content th {
+        background-color: var(--input-bg);
+        font-weight: 600;
+    }
+
+    .message .content tr:nth-child(even) {
+        background-color: rgba(255, 255, 255, 0.02);
+    }
+
+    /* Thinking Process */
+    .thinking-process {
+        color: #aaa;
+        border-left: 2px solid #aaa;
+        width: 100%;
         height: 100%;
-        transform: translate(-100%);
-    }
-
-    .sidebar.active {
-        transform: translate(0);
-    }
-
-    .mobile-header {
+        background-color: var(--main-bg);
+        z-index: 2000;
         display: flex;
+        flex-direction: column;
     }
-}
 
-/* Markdown Styles */
-.message .content h1,
-.message .content h2,
-.message .content h3 {
-    margin-top: 10px;
-    margin-bottom: 10px;
-    font-weight: 600;
-}
+    .login-header {
+        padding: 20px;
+    }
 
-.message .content p {
-    margin-bottom: 10px;
-}
+    #back-to-chat-btn {
+        background: transparent;
+        border: none;
+        color: var(--text-color);
+        cursor: pointer;
+        font-size: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        transition: color 0.2s;
+    }
 
-.message .content ul,
-.message .content ol {
-    margin-left: 20px;
-    margin-bottom: 10px;
-}
+    #back-to-chat-btn:hover {
+        color: var(--accent-color);
+    }
 
-.message .content code {
-    background-color: rgba(0, 0, 0, 0.1);
-    padding: 2px 4px;
-    border-radius: 3px;
-    font-family: monospace;
-}
+    .login-content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 20px;
+    }
 
-.message .content pre {
-    background-color: #000;
-    padding: 10px;
-    border-radius: 5px;
-    overflow-x: auto;
-    margin-bottom: 10px;
-}
+    .login-content h1 {
+        font-size: 2rem;
+        margin-bottom: 10px;
+        font-weight: 600;
+    }
 
-.message .content pre code {
-    background-color: transparent;
-    padding: 0;
-    color: #fff;
-}
+    .login-content p {
+        color: var(--text-color);
+        opacity: 0.7;
+        margin-bottom: 30px;
+    }
 
-/* Table Styles */
-.message .content table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-bottom: 15px;
-    margin-top: 10px;
-}
+    #google-login-container {
+        margin-top: 20px;
+    }
 
-.message .content th,
-.message .content td {
-    border: 1px solid var(--border-color);
-    padding: 8px 12px;
-    text-align: left;
-}
+    /* Login Overlay */
+    .login-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: var(--main-bg);
+        z-index: 2000;
+        display: flex;
+        flex-direction: column;
+        transition: background-color 0.5s ease;
+    }
 
-.message .content th {
-    background-color: var(--input-bg);
-    font-weight: 600;
-}
+    /* Profile View Styles */
+    .profile-avatar-large {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        margin-bottom: 15px;
+        object-fit: cover;
+    }
 
-.message .content tr:nth-child(even) {
-    background-color: rgba(255, 255, 255, 0.02);
-}
+    .profile-name-large {
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: var(--text-color);
+        margin-bottom: 5px;
+    }
 
-/* Thinking Process */
-.thinking-process {
-    color: #aaa;
-    border-left: 2px solid #aaa;
-    width: 100%;
-    height: 100%;
-    background-color: var(--main-bg);
-    z-index: 2000;
-    display: flex;
-    flex-direction: column;
-}
+    .profile-email-large {
+        font-size: 1rem;
+        color: var(--text-color);
+        opacity: 0.7;
+        margin-bottom: 20px;
+    }
 
-.login-header {
-    padding: 20px;
-}
+    .sign-out-btn {
+        background-color: #ef4444;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 1rem;
+        margin-top: 20px;
+        transition: background-color 0.2s;
+    }
 
-#back-to-chat-btn {
-    background: transparent;
-    border: none;
-    color: var(--text-color);
-    cursor: pointer;
-    font-size: 1rem;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    transition: color 0.2s;
-}
+    .sign-out-btn:hover {
+        background-color: #dc2626;
+    }
 
-#back-to-chat-btn:hover {
-    color: var(--accent-color);
-}
+    /* History Menu Styles */
+    .history-item .menu-btn {
+        opacity: 0;
+        color: var(--text-color);
+        padding: 5px;
+        border-radius: 3px;
+        transition: opacity 0.2s, background-color 0.2s;
+        margin-left: 5px;
+    }
 
-.login-content {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    padding: 20px;
-}
+    .history-item:hover .menu-btn,
+    .history-item .menu-btn.active {
+        opacity: 1;
+    }
 
-.login-content h1 {
-    font-size: 2rem;
-    margin-bottom: 10px;
-    font-weight: 600;
-}
+    .history-item .menu-btn:hover {
+        background-color: var(--hover-color);
+    }
 
-.login-content p {
-    color: var(--text-color);
-    opacity: 0.7;
-    margin-bottom: 30px;
-}
+    .history-menu {
+        position: absolute;
+        right: 10px;
+        top: 35px;
+        background-color: var(--sidebar-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 5px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        display: none;
+        min-width: 150px;
+        overflow: hidden;
+    }
 
-#google-login-container {
-    margin-top: 20px;
-}
+    .history-menu.show {
+        display: block;
+    }
 
-/* Login Overlay */
-.login-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: var(--main-bg);
-    z-index: 2000;
-    display: flex;
-    flex-direction: column;
-    transition: background-color 0.5s ease;
-}
+    .menu-item {
+        padding: 10px 15px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        cursor: pointer;
+        font-size: 0.9rem;
+        color: var(--text-color);
+    }
 
-/* Profile View Styles */
-.profile-avatar-large {
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    margin-bottom: 15px;
-    object-fit: cover;
-}
+    .menu-item:hover {
+        background-color: var(--hover-color);
+    }
 
-.profile-name-large {
-    font-size: 1.5rem;
-    font-weight: 600;
-    color: var(--text-color);
-    margin-bottom: 5px;
-}
+    .menu-item.delete {
+        color: #ef4444;
+    }
 
-.profile-email-large {
-    font-size: 1rem;
-    color: var(--text-color);
-    opacity: 0.7;
-    margin-bottom: 20px;
-}
+    .menu-item.delete:hover {
+        background-color: rgba(239, 68, 68, 0.1);
+    }
 
-.sign-out-btn {
-    background-color: #ef4444;
-    color: white;
-    border: none;
-    padding: 10px 20px;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 1rem;
-    margin-top: 20px;
-    transition: background-color 0.2s;
-}
+    /* Theme Selector Styles */
+    .theme-selector {
+        padding: 10px;
+        border-top: 1px solid var(--border-color);
+        margin-top: auto;
+        transition: border-color 0.5s ease;
+    }
 
-.sign-out-btn:hover {
-    background-color: #dc2626;
-}
+    .theme-label {
+        font-size: 0.8rem;
+        color: var(--text-color);
+        opacity: 0.6;
+        margin-bottom: 8px;
+        display: block;
+    }
 
-/* History Menu Styles */
-.history-item .menu-btn {
-    opacity: 0;
-    color: var(--text-color);
-    padding: 5px;
-    border-radius: 3px;
-    transition: opacity 0.2s, background-color 0.2s;
-    margin-left: 5px;
-}
+    .theme-options {
+        display: flex;
+        gap: 10px;
+        justify-content: space-around;
+    }
 
-.history-item:hover .menu-btn,
-.history-item .menu-btn.active {
-    opacity: 1;
-}
+    .theme-btn {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        border: 2px solid transparent;
+        cursor: pointer;
+        transition: transform 0.2s, border-color 0.2s;
+        position: relative;
+    }
 
-.history-item .menu-btn:hover {
-    background-color: var(--hover-color);
-}
+    .theme-btn:hover {
+        transform: scale(1.1);
+    }
 
-.history-menu {
-    position: absolute;
-    right: 10px;
-    top: 35px;
-    background-color: var(--sidebar-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 5px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
-    z-index: 1000;
-    display: none;
-    min-width: 150px;
-    overflow: hidden;
-}
+    .theme-btn.active {
+        border-color: var(--text-color);
+        box-shadow: 0 0 5px var(--shadow-color);
+    }
 
-.history-menu.show {
-    display: block;
-}
+    /* Theme Button Colors for Preview */
+    .theme-btn[data-theme-value="default"] {
+        background-color: #343541;
+    }
 
-.menu-item {
-    padding: 10px 15px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    cursor: pointer;
-    font-size: 0.9rem;
-    color: var(--text-color);
-}
+    .theme-btn[data-theme-value="ocean"] {
+        background: linear-gradient(135deg, #5CC6D0, #FFE8D2);
+        border: 1px solid #FF8A80;
+    }
 
-.menu-item:hover {
-    background-color: var(--hover-color);
-}
+    .theme-btn[data-theme-value="sunset"] {
+        background: linear-gradient(135deg, #FF4081, #81D4FA);
+        border: 1px solid #E1BEE7;
+    }
 
-.menu-item.delete {
-    color: #ef4444;
-}
+    .theme-btn[data-theme-value="golden"] {
+        background: linear-gradient(135deg, #DCEDC8, #FFCC80);
+        border: 1px solid #EF6C00;
+    }
 
-.menu-item.delete:hover {
-    background-color: rgba(239, 68, 68, 0.1);
-}
+    /* Galaxy Theme (Starry Night - Deep Purple & Pink) */
+    [data-theme="galaxy"] {
+        --sidebar-bg: #120E26;
+        --main-bg: #0f0c29;
+        --input-bg: #1F1B38;
+        --text-color: #E9D5FF;
+        --user-msg-bg: #D946EF;
+        --ai-msg-bg: #1F1B38;
+        --border-color: #4C1D95;
+        --accent-color: #F472B6;
+        --hover-color: #2E1065;
+        --scrollbar-track: #120E26;
+        --scrollbar-thumb: #4C1D95;
+        --modal-bg: #120E26;
+        --modal-text: #E9D5FF;
+        --shadow-color: rgba(217, 70, 239, 0.2);
+    }
 
-/* Theme Selector Styles */
-.theme-selector {
-    padding: 10px;
-    border-top: 1px solid var(--border-color);
-    margin-top: auto;
-    transition: border-color 0.5s ease;
-}
+    .theme-btn[data-theme-value="galaxy"] {
+        background: linear-gradient(135deg, #0f0c29, #D946EF);
+        border: 1px solid #F472B6;
+    }
 
-.theme-label {
-    font-size: 0.8rem;
-    color: var(--text-color);
-    opacity: 0.6;
-    margin-bottom: 8px;
-    display: block;
-}
+    /* Moonlight Theme (Moonlight Serenade - Blue & Purple Night) */
+    [data-theme="moonlight"] {
+        --sidebar-bg: #181D2A;
+        --main-bg: #141927;
+        --input-bg: #1D2333;
+        --text-color: #FFF9C4;
+        --user-msg-bg: #8FA8FF;
+        --ai-msg-bg: #F5ECFF;
+        --border-color: #3A4760;
+        --accent-color: #FFE082;
+        --hover-color: #3A4760;
+        --scrollbar-track: #181D2A;
+        --scrollbar-thumb: #3A4760;
+        --modal-bg: #1D2333;
+        --modal-text: #FFF9C4;
+        --shadow-color: rgba(143, 168, 255, 0.1);
+    }
 
-.theme-options {
-    display: flex;
-    gap: 10px;
-    justify-content: space-around;
-}
+    /* Specific override for AI Message Text Color in Moonlight Theme to ensure readability on light background */
+    [data-theme="moonlight"] .ai-message .content {
+        color: #141927 !important;
+    }
 
-.theme-btn {
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
-    border: 2px solid transparent;
-    cursor: pointer;
-    transition: transform 0.2s, border-color 0.2s;
-    position: relative;
-}
+    /* Ensure table headers remain light in Moonlight theme (since they have dark background) */
+    [data-theme="moonlight"] .ai-message .content th {
+        color: #FFF9C4 !important;
+    }
 
-.theme-btn:hover {
-    transform: scale(1.1);
-}
-
-.theme-btn.active {
-    border-color: var(--text-color);
-    box-shadow: 0 0 5px var(--shadow-color);
-}
-
-/* Theme Button Colors for Preview */
-.theme-btn[data-theme-value="default"] {
-    background-color: #343541;
-}
-
-.theme-btn[data-theme-value="ocean"] {
-    background: linear-gradient(135deg, #5CC6D0, #FFE8D2);
-    border: 1px solid #FF8A80;
-}
-
-.theme-btn[data-theme-value="sunset"] {
-    background: linear-gradient(135deg, #FF4081, #81D4FA);
-    border: 1px solid #E1BEE7;
-}
-
-.theme-btn[data-theme-value="golden"] {
-    background: linear-gradient(135deg, #DCEDC8, #FFCC80);
-    border: 1px solid #EF6C00;
-}
-
-/* Galaxy Theme (Starry Night - Deep Purple & Pink) */
-[data-theme="galaxy"] {
-    --sidebar-bg: #120E26;
-    --main-bg: #0f0c29;
-    --input-bg: #1F1B38;
-    --text-color: #E9D5FF;
-    --user-msg-bg: #D946EF;
-    --ai-msg-bg: #1F1B38;
-    --border-color: #4C1D95;
-    --accent-color: #F472B6;
-    --hover-color: #2E1065;
-    --scrollbar-track: #120E26;
-    --scrollbar-thumb: #4C1D95;
-    --modal-bg: #120E26;
-    --modal-text: #E9D5FF;
-    --shadow-color: rgba(217, 70, 239, 0.2);
-}
-
-.theme-btn[data-theme-value="galaxy"] {
-    background: linear-gradient(135deg, #0f0c29, #D946EF);
-    border: 1px solid #F472B6;
-}
-
-/* Moonlight Theme (Moonlight Serenade - Blue & Purple Night) */
-[data-theme="moonlight"] {
-    --sidebar-bg: #181D2A;
-    --main-bg: #141927;
-    --input-bg: #1D2333;
-    --text-color: #FFF9C4;
-    --user-msg-bg: #8FA8FF;
-    --ai-msg-bg: #F5ECFF;
-    --border-color: #3A4760;
-    --accent-color: #FFE082;
-    --hover-color: #3A4760;
-    --scrollbar-track: #181D2A;
-    --scrollbar-thumb: #3A4760;
-    --modal-bg: #1D2333;
-    --modal-text: #FFF9C4;
-    --shadow-color: rgba(143, 168, 255, 0.1);
-}
-
-/* Specific override for AI Message Text Color in Moonlight Theme to ensure readability on light background */
-[data-theme="moonlight"] .ai-message .content {
-    color: #141927 !important;
-}
-
-/* Ensure table headers remain light in Moonlight theme (since they have dark background) */
-[data-theme="moonlight"] .ai-message .content th {
-    color: #FFF9C4 !important;
-}
-
-.theme-btn[data-theme-value="moonlight"] {
-    background: linear-gradient(135deg, #141927, #FFE082);
-    border: 1px solid #8FA8FF;
-}
+    .theme-btn[data-theme-value="moonlight"] {
+        background: linear-gradient(135deg, #141927, #FFE082);
+        border: 1px solid #8FA8FF;
+    }
