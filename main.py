@@ -150,7 +150,7 @@ async def chat_with_ai(
     # Add System Prompt
     system_prompt = {
         "role": "system", 
-        "content": "You are ABDUL, a helpful AI assistant. You must remember the context of the conversation, including the user's name and previous messages. Always answer in Thai unless asked otherwise."
+        "content": "You are ABDUL, a helpful AI assistant. You must remember the context of the conversation, including the user's name and previous messages. Always answer in Thai unless asked otherwise. DO NOT transliterate Thai to English (Karaoke) or provide English translations unless explicitly asked. Just answer naturally in Thai."
     }
     
     # Ensure system prompt is first
