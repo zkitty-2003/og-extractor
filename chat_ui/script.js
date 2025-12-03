@@ -33,6 +33,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Load Chat History
     loadChatHistory();
 
+    // Initialize Theme
+    initTheme();
+
     // Event Listeners
     if (sendBtn) sendBtn.addEventListener('click', sendMessage);
 
