@@ -88,6 +88,19 @@ document.addEventListener('DOMContentLoaded', () => {
             window.openLoginOverlay();
         });
     }
+
+    // Share Button Handler
+    const shareBtn = document.getElementById('share-btn');
+    if (shareBtn) {
+        shareBtn.addEventListener('click', shareCurrentChat);
+    }
+
+    // Check for Shared Chat in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const shareId = urlParams.get('share');
+    if (shareId) {
+        loadSharedChat(shareId);
+    }
 });
 
 // Define globally
@@ -629,5 +642,68 @@ function setBusyState(busy) {
             sendBtn.style.opacity = '1';
             sendBtn.style.cursor = 'pointer';
         }
+    }
+}
+
+async function shareCurrentChat() {
+    if (chatHistory.length === 0) {
+        alert("ยังไม่มีข้อความให้แชร์ครับ");
+        return;
+    }
+
+    try {
+        const response = await fetch('/share', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ messages: chatHistory })
+        });
+
+        if (!response.ok) throw new Error("Share failed");
+
+        const data = await response.json();
+        const shareUrl = `${window.location.origin}${window.location.pathname}?share=${data.id}`;
+
+        await navigator.clipboard.writeText(shareUrl);
+        alert("คัดลอกลิงก์แชร์เรียบร้อยแล้ว! ส่งให้เพื่อนได้เลยครับ\n\n" + shareUrl);
+    } catch (error) {
+        console.error("Error sharing chat:", error);
+        alert("เกิดข้อผิดพลาดในการแชร์แชท");
+    }
+}
+
+async function loadSharedChat(shareId) {
+    try {
+        const response = await fetch(`/share/${shareId}`);
+        if (!response.ok) throw new Error("Shared chat not found");
+
+        const data = await response.json();
+        chatHistory = data.messages;
+        currentChatId = null; // Important: Treat as new session for the guest
+
+        // Render UI
+        const chatContainer = document.getElementById('chat-container');
+        chatContainer.innerHTML = '';
+
+        // Add a system message indicating this is a shared chat
+        const systemDiv = document.createElement('div');
+        systemDiv.style.textAlign = 'center';
+        systemDiv.style.color = '#8e8ea0';
+        systemDiv.style.fontSize = '0.8rem';
+        systemDiv.style.margin = '10px 0';
+        systemDiv.textContent = '--- โหลดประวัติแชทที่แชร์มาเรียบร้อย (เริ่มคุยต่อได้เลย) ---';
+        chatContainer.appendChild(systemDiv);
+
+        chatHistory.forEach(msg => {
+            renderMessageToUI(msg.content, msg.role === 'user' ? 'user' : 'ai');
+        });
+
+        scrollToBottom();
+
+        // Clear URL params to avoid reloading on refresh
+        window.history.replaceState({}, document.title, window.location.pathname);
+
+    } catch (error) {
+        console.error("Error loading shared chat:", error);
+        alert("ไม่พบแชทที่แชร์มา หรือลิงก์หมดอายุแล้ว");
     }
 }
