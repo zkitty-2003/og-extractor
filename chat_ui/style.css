@@ -72,8 +72,8 @@
     --shadow-color: rgba(74, 20, 140, 0.1);
 }
 
-/* Forest Theme (Golden Meadow - Green & Orange) */
-[data-theme="forest"] {
+/* Golden Theme (Golden Meadow - Green & Orange) */
+[data-theme="golden"] {
     --sidebar-bg: #DCEDC8;
     /* Light Green (Hills) */
     --main-bg: #F1F8E9;
@@ -767,12 +767,238 @@ textarea {
     border: 1px solid #FF8A80;
 }
 
+}
+
+#back-to-chat-btn:hover {
+    color: var(--accent-color);
+}
+
+.login-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 20px;
+}
+
+.login-content h1 {
+    font-size: 2rem;
+    margin-bottom: 10px;
+    font-weight: 600;
+}
+
+.login-content p {
+    color: var(--text-color);
+    opacity: 0.7;
+    margin-bottom: 30px;
+}
+
+#google-login-container {
+    margin-top: 20px;
+}
+
+/* Login Overlay */
+.login-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: var(--main-bg);
+    z-index: 2000;
+    display: flex;
+    flex-direction: column;
+    transition: background-color 0.5s ease;
+}
+
+/* Profile View Styles */
+.profile-avatar-large {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    margin-bottom: 15px;
+    object-fit: cover;
+}
+
+.profile-name-large {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--text-color);
+    margin-bottom: 5px;
+}
+
+.profile-email-large {
+    font-size: 1rem;
+    color: var(--text-color);
+    opacity: 0.7;
+    margin-bottom: 20px;
+}
+
+.sign-out-btn {
+    background-color: #ef4444;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1rem;
+    margin-top: 20px;
+    transition: background-color 0.2s;
+}
+
+.sign-out-btn:hover {
+    background-color: #dc2626;
+}
+
+/* History Menu Styles */
+.history-item .menu-btn {
+    opacity: 0;
+    color: var(--text-color);
+    padding: 5px;
+    border-radius: 3px;
+    transition: opacity 0.2s, background-color 0.2s;
+    margin-left: 5px;
+}
+
+.history-item:hover .menu-btn,
+.history-item .menu-btn.active {
+    opacity: 1;
+}
+
+.history-item .menu-btn:hover {
+    background-color: var(--hover-color);
+}
+
+.history-menu {
+    position: absolute;
+    right: 10px;
+    top: 35px;
+    background-color: var(--sidebar-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    display: none;
+    min-width: 150px;
+    overflow: hidden;
+}
+
+.history-menu.show {
+    display: block;
+}
+
+.menu-item {
+    padding: 10px 15px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: var(--text-color);
+}
+
+.menu-item:hover {
+    background-color: var(--hover-color);
+}
+
+.menu-item.delete {
+    color: #ef4444;
+}
+
+.menu-item.delete:hover {
+    background-color: rgba(239, 68, 68, 0.1);
+}
+
+/* Theme Selector Styles */
+.theme-selector {
+    padding: 10px;
+    border-top: 1px solid var(--border-color);
+    margin-top: auto;
+    transition: border-color 0.5s ease;
+}
+
+.theme-label {
+    font-size: 0.8rem;
+    color: var(--text-color);
+    opacity: 0.6;
+    margin-bottom: 8px;
+    display: block;
+}
+
+.theme-options {
+    display: flex;
+    gap: 10px;
+    justify-content: space-around;
+}
+
+.theme-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: transform 0.2s, border-color 0.2s;
+    position: relative;
+}
+
+.theme-btn:hover {
+    transform: scale(1.1);
+}
+
+.theme-btn.active {
+    border-color: var(--text-color);
+    box-shadow: 0 0 5px var(--shadow-color);
+}
+
+/* Theme Button Colors for Preview */
+.theme-btn[data-theme-value="default"] {
+    background-color: #343541;
+}
+
+.theme-btn[data-theme-value="ocean"] {
+    background: linear-gradient(135deg, #5CC6D0, #FFE8D2);
+    border: 1px solid #FF8A80;
+}
+
 .theme-btn[data-theme-value="sunset"] {
     background: linear-gradient(135deg, #FF4081, #81D4FA);
     border: 1px solid #E1BEE7;
 }
 
-.theme-btn[data-theme-value="forest"] {
+.theme-btn[data-theme-value="golden"] {
     background: linear-gradient(135deg, #DCEDC8, #FFCC80);
     border: 1px solid #EF6C00;
+}
+
+/* Galaxy Theme (Starry Night - Deep Purple & Pink) */
+[data-theme="galaxy"] {
+    --sidebar-bg: #120E26;
+    /* Deep Dark Purple */
+    --main-bg: #0f0c29;
+    /* Night Sky */
+    --input-bg: #1F1B38;
+    /* Darker Purple Input */
+    --text-color: #E9D5FF;
+    /* Light Purple Text */
+    --user-msg-bg: #D946EF;
+    /* Neon Pink/Purple */
+    --ai-msg-bg: #1F1B38;
+    /* Dark Purple Bubble */
+    --border-color: #4C1D95;
+    /* Deep Purple Border */
+    --accent-color: #F472B6;
+    /* Pink Accent */
+    --hover-color: #2E1065;
+    --scrollbar-track: #120E26;
+    --scrollbar-thumb: #4C1D95;
+    --modal-bg: #120E26;
+    --modal-text: #E9D5FF;
+    --shadow-color: rgba(217, 70, 239, 0.2);
+}
+
+.theme-btn[data-theme-value="galaxy"] {
+    background: linear-gradient(135deg, #0f0c29, #D946EF);
+    border: 1px solid #F472B6;
 }
