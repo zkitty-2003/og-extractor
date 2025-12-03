@@ -148,6 +148,7 @@ window.openLoginOverlay = function () {
 };
 
 // Google Sign-In Callback
+// Google Sign-In Callback
 function handleCredentialResponse(response) {
     if (response.credential) {
         // Send token to backend
@@ -158,17 +159,27 @@ function handleCredentialResponse(response) {
             },
             body: JSON.stringify({ token: response.credential })
         })
-            .then(res => res.json())
+            .then(res => {
+                if (!res.ok) {
+                    return res.json().then(err => { throw new Error(err.detail || 'Server error'); });
+                }
+                return res.json();
+            })
             .then(data => {
                 if (data.success) {
                     currentUser = data.user;
                     updateUIForLogin();
                     // Reload history for the logged-in user
                     loadChatHistory();
-                    startNewChat(); // Optional: Start fresh or load last chat? Let's start fresh.
+                    startNewChat();
+                } else {
+                    alert('Login failed: ' + (data.error || 'Unknown error'));
                 }
             })
-            .catch(err => console.error('Login error:', err));
+            .catch(err => {
+                console.error('Login error:', err);
+                alert('Login error: ' + err.message);
+            });
     }
 }
 

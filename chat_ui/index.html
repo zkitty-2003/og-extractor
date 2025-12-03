@@ -24,17 +24,18 @@
                 </div>
                 <div class="history-list" id="history-list">
                     <!-- History items will be added here -->
-                    <div class="history-item">
-                        <span class="title">เราชื่อส้ม</span>
-                    </div>
-                    <div class="history-item">
-                        <span class="title">วันนี้สภาพอากาศเป็นยังไง</span>
-                    </div>
+                </div>
+            </div>
+
+            <div class="sidebar-bottom">
+                <!-- User Profile (Hidden by default) -->
+                <div id="user-profile" class="user-profile" style="display: none;" onclick="openLoginOverlay()">
+                    <img id="user-avatar" class="avatar" src="" alt="User Avatar"
+                        style="width: 30px; height: 30px; border-radius: 2px;">
                     <div class="user-info">
-                        <span id="user-name"></span>
-                        <span id="user-email" style="font-size: 0.8rem; color: #b9bbbe;"></span>
+                        <span id="user-name" style="font-weight: bold; font-size: 0.9rem;"></span>
+                        <span id="user-email" style="font-size: 0.8rem; opacity: 0.7;"></span>
                     </div>
-                    <i class="fas fa-chevron-right" style="margin-left: auto; color: #b9bbbe;"></i>
                 </div>
 
                 <!-- Theme Selector -->
@@ -50,7 +51,7 @@
 
                 <!-- Share Button -->
                 <button id="share-btn" class="login-btn"
-                    style="margin-bottom: 10px; background-color: #40414f; border: 1px solid #565869;">
+                    style="margin-bottom: 10px; background-color: var(--input-bg); border: 1px solid var(--border-color); color: var(--text-color);">
                     <i class="fas fa-share-alt"></i> Share Chat
                 </button>
 
@@ -109,7 +110,7 @@
         </div>
     </div>
 
-    <script src="/static/script.js?v=31"></script>
+    <script src="/static/script.js?v=32"></script>
 </body>
 
 </html>
