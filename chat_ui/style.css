@@ -971,6 +971,7 @@ textarea {
     background: linear-gradient(135deg, #DCEDC8, #FFCC80);
     border: 1px solid #EF6C00;
 }
+
 /* Galaxy Theme (Starry Night - Deep Purple & Pink) */
 [data-theme="galaxy"] {
     --sidebar-bg: #120E26;
@@ -1010,21 +1011,21 @@ textarea {
     /* Main Background */
     --input-bg: #1D2333;
     /* Chat Box/Panel */
-    --text-color: #E4EBFF;
-    /* Main Text */
+    --text-color: #FFF9C4;
+    /* Main Text - Light Moon Yellow */
     --user-msg-bg: #8FA8FF;
     /* User Bubble */
     --ai-msg-bg: #F5ECFF;
     /* AI Bubble */
     --border-color: #3A4760;
     /* Border/Divider */
-    --accent-color: #F2A6D9;
-    /* Accent/Main Button */
+    --accent-color: #FFE082;
+    /* Accent/Main Button - Moon Yellow */
     --hover-color: #3A4760;
     --scrollbar-track: #181D2A;
     --scrollbar-thumb: #3A4760;
     --modal-bg: #1D2333;
-    --modal-text: #E4EBFF;
+    --modal-text: #FFF9C4;
     --shadow-color: rgba(143, 168, 255, 0.1);
 }
 
@@ -1034,6 +1035,6 @@ textarea {
 }
 
 .theme-btn[data-theme-value="moonlight"] {
-    background: linear-gradient(135deg, #141927, #F2A6D9);
+    background: linear-gradient(135deg, #141927, #FFE082);
     border: 1px solid #8FA8FF;
 }
