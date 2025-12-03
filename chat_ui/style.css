@@ -41,25 +41,28 @@
     --shadow-color: rgba(14, 165, 233, 0.2);
 }
 
-/* Sunset Theme (Warm & Cozy) */
+/* Sunset Theme (Pastel Pink - Sweet & Soft) */
 [data-theme="sunset"] {
-    --sidebar-bg: #2a1b22;
-    --main-bg: #201318;
-    --input-bg: #4a2b38;
-    --text-color: #ffe4e6;
-    /* Rose 100 */
-    --user-msg-bg: #831843;
-    /* Pink 900 */
-    --ai-msg-bg: #500724;
-    /* Rose 950 */
-    --border-color: #831843;
+    --sidebar-bg: #fdf2f8;
+    /* Pink 50 */
+    --main-bg: #fff1f2;
+    /* Rose 50 */
+    --input-bg: #ffffff;
+    --text-color: #881337;
+    /* Rose 900 */
+    --user-msg-bg: #fbcfe8;
+    /* Pink 200 */
+    --ai-msg-bg: #ffffff;
+    --border-color: #f9a8d4;
+    /* Pink 300 */
     --accent-color: #f472b6;
     /* Pink 400 */
-    --hover-color: #4a2b38;
-    --scrollbar-track: #2a1b22;
-    --scrollbar-thumb: #831843;
-    --modal-bg: #2a1b22;
-    --modal-text: #ffe4e6;
+    --hover-color: #fce7f3;
+    /* Pink 100 */
+    --scrollbar-track: #fdf2f8;
+    --scrollbar-thumb: #f9a8d4;
+    --modal-bg: #fff1f2;
+    --modal-text: #881337;
     --shadow-color: rgba(244, 114, 182, 0.2);
 }
 
