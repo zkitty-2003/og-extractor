@@ -169,6 +169,8 @@ function handleCredentialResponse(response) {
                 if (data.success) {
                     currentUser = data.user;
                     updateUIForLogin();
+                    // Load User Theme
+                    initThemeAfterLogin(currentUser.email);
                     // Reload history for the logged-in user
                     loadChatHistory();
                     startNewChat();
@@ -723,6 +725,15 @@ async function loadSharedChat(shareId) {
 }
 
 // Theme Management
+// Theme Management
+function loadThemeForUser(userId) {
+    return localStorage.getItem('theme_' + userId);
+}
+
+function saveThemeForUser(userId, themeName) {
+    localStorage.setItem('theme_' + userId, themeName);
+}
+
 function applyTheme(themeName) {
     document.body.setAttribute('data-theme', themeName);
 
@@ -736,12 +747,31 @@ function applyTheme(themeName) {
     });
 }
 
+function initThemeAfterLogin(userId) {
+    const userTheme = loadThemeForUser(userId);
+    if (userTheme) {
+        console.log(`Loading saved theme for ${userId}: ${userTheme}`);
+        applyTheme(userTheme);
+    } else {
+        console.log(`First time login for ${userId}, setting default theme.`);
+        applyTheme('default');
+        saveThemeForUser(userId, 'default');
+    }
+}
+
 function saveTheme(themeName) {
     applyTheme(themeName);
-    localStorage.setItem('chat_theme', themeName);
+
+    if (currentUser && currentUser.email) {
+        saveThemeForUser(currentUser.email, themeName);
+    } else {
+        // Fallback for guest
+        localStorage.setItem('chat_theme', themeName);
+    }
 }
 
 function initTheme() {
+    // Initial load (Guest mode or before login)
     const savedTheme = localStorage.getItem('chat_theme') || 'default';
     applyTheme(savedTheme);
 
