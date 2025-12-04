@@ -18,7 +18,7 @@
     --shadow-color: rgba(0, 0, 0, 0.5);
 }
 
-/* Ocean Theme (Beach & Sand - Custom Request) */
+/* Ocean Theme */
 [data-theme="ocean"] {
     --sidebar-bg: #FBD2B0;
     --main-bg: #FDF4E6;
@@ -36,12 +36,11 @@
     --shadow-color: rgba(38, 50, 56, 0.1);
 }
 
-/* Specific override for User Message Text Color in Ocean Theme */
 [data-theme="ocean"] .user-message {
     color: #073B4C;
 }
 
-/* Sunset Theme (Dreamy Pastel - Pink & Blue) */
+/* Sunset Theme */
 [data-theme="sunset"] {
     --sidebar-bg: #FFF0F5;
     --main-bg: #F3E5F5;
@@ -59,7 +58,7 @@
     --shadow-color: rgba(74, 20, 140, 0.1);
 }
 
-/* Golden Theme (Golden Meadow - Green & Orange) */
+/* Golden Theme */
 [data-theme="golden"] {
     --sidebar-bg: #DCEDC8;
     --main-bg: #F1F8E9;
@@ -75,6 +74,50 @@
     --modal-bg: #F1F8E9;
     --modal-text: #1B5E20;
     --shadow-color: rgba(27, 94, 32, 0.1);
+}
+
+/* Galaxy Theme */
+[data-theme="galaxy"] {
+    --sidebar-bg: #120E26;
+    --main-bg: #0f0c29;
+    --input-bg: #1F1B38;
+    --text-color: #E9D5FF;
+    --user-msg-bg: #D946EF;
+    --ai-msg-bg: #1F1B38;
+    --border-color: #4C1D95;
+    --accent-color: #F472B6;
+    --hover-color: #2E1065;
+    --scrollbar-track: #120E26;
+    --scrollbar-thumb: #4C1D95;
+    --modal-bg: #120E26;
+    --modal-text: #E9D5FF;
+    --shadow-color: rgba(217, 70, 239, 0.2);
+}
+
+/* Moonlight Theme */
+[data-theme="moonlight"] {
+    --sidebar-bg: #181D2A;
+    --main-bg: #141927;
+    --input-bg: #1D2333;
+    --text-color: #FFF9C4;
+    --user-msg-bg: #8FA8FF;
+    --ai-msg-bg: #F5ECFF;
+    --border-color: #3A4760;
+    --accent-color: #FFE082;
+    --hover-color: #3A4760;
+    --scrollbar-track: #181D2A;
+    --scrollbar-thumb: #3A4760;
+    --modal-bg: #1D2333;
+    --modal-text: #FFF9C4;
+    --shadow-color: rgba(143, 168, 255, 0.1);
+}
+
+[data-theme="moonlight"] .ai-message .content {
+    color: #141927 !important;
+}
+
+[data-theme="moonlight"] .ai-message .content th {
+    color: #FFF9C4 !important;
 }
 
 * {
@@ -100,8 +143,10 @@ body {
     display: flex;
     height: 100%;
     position: relative;
+    overflow: hidden;
 }
 
+/* Sidebar */
 .sidebar {
     width: 260px;
     background-color: var(--sidebar-bg);
@@ -111,6 +156,7 @@ body {
     border-right: 1px solid var(--border-color);
     transition: transform .3s ease-in-out, background-color 0.5s ease, border-color 0.5s ease;
     z-index: 100;
+    flex-shrink: 0;
 }
 
 .sidebar-top {
@@ -209,8 +255,19 @@ body {
     flex: 1;
 }
 
+/* Main Content Area (Flex Column) */
+.main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+    position: relative;
+}
+
 /* Chat Header */
 .chat-header {
+    flex-shrink: 0;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -219,6 +276,7 @@ body {
     background-color: var(--main-bg);
     color: var(--text-color);
     transition: border-color 0.5s ease, background-color 0.5s ease, color 0.5s ease;
+    height: 60px;
 }
 
 .header-left {
@@ -250,17 +308,44 @@ body {
     background-color: var(--hover-color);
 }
 
-/* Chat Container */
+/* Chat Container (Scrollable) */
 .chat-container {
     flex: 1;
-    padding: 20px;
     overflow-y: auto;
+    padding: 20px;
     display: flex;
     flex-direction: column;
     gap: 20px;
     scroll-behavior: smooth;
-    padding-bottom: 120px;
-    /* Space for input area */
+}
+
+/* Welcome Message Centering */
+.message.welcome-message {
+    margin: auto;
+    /* Center vertically and horizontally */
+    max-width: 600px;
+    text-align: center;
+    justify-content: center;
+    flex-direction: column;
+    align-items: center;
+    background: transparent;
+    border: none;
+}
+
+.welcome-message .avatar {
+    width: 60px;
+    height: 60px;
+    font-size: 24px;
+    margin-bottom: 15px;
+}
+
+.welcome-message .bubble {
+    background: transparent;
+    color: var(--text-color);
+    font-size: 1.2rem;
+    text-align: center;
+    max-width: 100%;
+    padding: 0;
 }
 
 /* Messenger Style Layout */
@@ -270,16 +355,19 @@ body {
     max-width: 1100px;
     /* Constrain content width */
     margin: 0 auto;
-    padding: 10px 20px;
+    /* Center in container */
+    padding: 0;
     gap: 10px;
     align-items: flex-end;
     /* Align avatar to bottom of bubble */
 }
 
+/* AI Message (Left) */
 .message.ai-message {
     justify-content: flex-start;
 }
 
+/* User Message (Right) */
 .message.user-message {
     justify-content: flex-end;
 }
@@ -305,14 +393,17 @@ body {
 .user-message .avatar {
     background-color: #5436da;
     margin-left: 8px;
+    order: 2;
+    /* Ensure avatar is on the right */
 }
 
 .user-message .bubble {
     background-color: var(--user-msg-bg);
     color: white;
     border-radius: 18px 18px 4px 18px;
-    /* Messenger style */
     text-align: left;
+    order: 1;
+    /* Ensure bubble is on the left of avatar */
 }
 
 .ai-message .bubble {
@@ -334,17 +425,18 @@ body {
     width: 100%;
 }
 
+/* Input Area (Fixed at bottom via Flex) */
 .input-area {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background-image: linear-gradient(180deg, transparent, var(--main-bg) 60%);
+    flex-shrink: 0;
+    width: 100%;
+    background-color: var(--main-bg);
+    /* Solid background to cover chat */
     padding: 20px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    transition: background-image 0.5s ease;
+    border-top: 1px solid var(--border-color);
+    transition: background-color 0.5s ease, border-color 0.5s ease;
 }
 
 .input-wrapper {
@@ -353,7 +445,6 @@ body {
     /* Match message width */
     background-color: var(--input-bg);
     border-radius: 25px;
-    /* More rounded */
     display: flex;
     align-items: flex-end;
     padding: 10px;

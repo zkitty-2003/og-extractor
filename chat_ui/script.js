@@ -604,7 +604,7 @@ function startNewChat() {
         chatContainer.innerHTML = '';
         // Add Welcome Message
         const welcomeDiv = document.createElement('div');
-        welcomeDiv.className = 'message ai-message';
+        welcomeDiv.className = 'message ai-message welcome-message';
         welcomeDiv.innerHTML = `
             <div class="avatar">A</div>
             <div class="bubble">
