@@ -4,8 +4,10 @@
     --main-bg: #343541;
     --input-bg: #40414f;
     --text-color: #ececf1;
-    --user-msg-bg: #343541;
-    --ai-msg-bg: #444654;
+    --user-msg-bg: #0084ff;
+    /* Messenger Blue */
+    --ai-msg-bg: #3E4042;
+    /* Dark Gray */
     --border-color: #4d4d4f;
     --accent-color: #10a37f;
     --hover-color: #2a2b32;
@@ -19,23 +21,14 @@
 /* Ocean Theme (Beach & Sand - Custom Request) */
 [data-theme="ocean"] {
     --sidebar-bg: #FBD2B0;
-    /* Peach/Sand Sidebar */
     --main-bg: #FDF4E6;
-    /* Sand/Cream Background */
     --input-bg: #FFF3E5;
-    /* Lighter Sand Input */
     --text-color: #263238;
-    /* Dark Blue-Grey Text */
     --user-msg-bg: #5CC6D0;
-    /* Teal User Bubble */
     --ai-msg-bg: #FFFFFF;
-    /* White AI Bubble */
     --border-color: #F5C6A5;
-    /* Darker Sand Border */
     --accent-color: #FF8A80;
-    /* Coral/Salmon Buttons */
     --hover-color: #F5C6A5;
-    /* Hover state */
     --scrollbar-track: #FBD2B0;
     --scrollbar-thumb: #FF8A80;
     --modal-bg: #FFF3E5;
@@ -51,19 +44,13 @@
 /* Sunset Theme (Dreamy Pastel - Pink & Blue) */
 [data-theme="sunset"] {
     --sidebar-bg: #FFF0F5;
-    /* LavenderBlush (Pinkish Sky) */
     --main-bg: #F3E5F5;
-    /* Purple 50 (Dreamy Water) */
     --input-bg: #FFFFFF;
     --text-color: #4A148C;
-    /* Dark Purple Text */
     --user-msg-bg: #81D4FA;
-    /* Light Blue (Water reflection) */
     --ai-msg-bg: #FFFFFF;
     --border-color: #E1BEE7;
-    /* Purple 100 */
     --accent-color: #FF4081;
-    /* Pink Accent (Sun) */
     --hover-color: #E1BEE7;
     --scrollbar-track: #FFF0F5;
     --scrollbar-thumb: #CE93D8;
@@ -75,19 +62,13 @@
 /* Golden Theme (Golden Meadow - Green & Orange) */
 [data-theme="golden"] {
     --sidebar-bg: #DCEDC8;
-    /* Light Green (Hills) */
     --main-bg: #F1F8E9;
-    /* Very Light Green (Meadow) */
     --input-bg: #FFFFFF;
     --text-color: #1B5E20;
-    /* Dark Green Text */
     --user-msg-bg: #FFCC80;
-    /* Golden Orange (Sun/Flowers) */
     --ai-msg-bg: #FFFFFF;
     --border-color: #AED581;
-    /* Green Border */
     --accent-color: #EF6C00;
-    /* Deep Orange Accent */
     --hover-color: #AED581;
     --scrollbar-track: #DCEDC8;
     --scrollbar-thumb: #8BC34A;
@@ -282,65 +263,75 @@ body {
     /* Space for input area */
 }
 
+/* Messenger Style Layout */
 .message {
     display: flex;
-    align-items: flex-start;
-    max-width: 800px;
-    margin: 0 auto;
     width: 100%;
-    padding: 20px;
+    max-width: 1100px;
+    /* Constrain content width */
+    margin: 0 auto;
+    padding: 10px 20px;
     gap: 10px;
+    align-items: flex-end;
+    /* Align avatar to bottom of bubble */
 }
 
 .message.ai-message {
-    background-color: var(--ai-msg-bg);
-    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    justify-content: flex-start;
 }
 
 .message.user-message {
-    background-color: transparent;
+    justify-content: flex-end;
 }
 
 .avatar {
-    width: 30px;
-    height: 30px;
-    border-radius: 2px;
+    width: 35px;
+    height: 35px;
+    border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
     font-weight: bold;
     flex-shrink: 0;
+    overflow: hidden;
 }
 
 .ai-message .avatar {
     background-color: var(--accent-color);
     color: white;
+    margin-right: 8px;
 }
 
 .user-message .avatar {
     background-color: #5436da;
-}
-
-.user-message {
-    flex-direction: row-reverse;
+    margin-left: 8px;
 }
 
 .user-message .bubble {
-    text-align: right;
+    background-color: var(--user-msg-bg);
+    color: white;
+    border-radius: 18px 18px 4px 18px;
+    /* Messenger style */
+    text-align: left;
+}
+
+.ai-message .bubble {
+    background-color: var(--ai-msg-bg);
+    color: var(--text-color);
+    border-radius: 18px 18px 18px 4px;
 }
 
 .bubble {
-    flex: 1;
+    max-width: 70%;
+    padding: 12px 16px;
     font-size: 1rem;
-    line-height: 1.6;
-    color: var(--text-color);
+    line-height: 1.5;
+    position: relative;
+    word-wrap: break-word;
 }
 
 .message .content {
-    line-height: 1.6;
-    max-width: 800px;
     width: 100%;
-    color: var(--text-color);
 }
 
 .input-area {
@@ -358,9 +349,11 @@ body {
 
 .input-wrapper {
     width: 100%;
-    max-width: 768px;
+    max-width: 1100px;
+    /* Match message width */
     background-color: var(--input-bg);
-    border-radius: 15px;
+    border-radius: 25px;
+    /* More rounded */
     display: flex;
     align-items: flex-end;
     padding: 10px;
