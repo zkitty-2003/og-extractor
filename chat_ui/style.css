@@ -340,14 +340,14 @@ body {
 }
 
 .welcome-message .bubble {
-    background-color: var(--ai-msg-bg);
+    background: transparent;
     color: var(--text-color);
     font-size: 1.5rem;
     text-align: center;
-    max-width: 80%;
-    padding: 40px 60px;
-    border-radius: 25px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    max-width: 100%;
+    padding: 20px;
+    border-radius: 0;
+    box-shadow: none;
 }
 
 /* Messenger Style Layout */
