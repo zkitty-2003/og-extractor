@@ -31,12 +31,16 @@ app.mount("/static", StaticFiles(directory="chat_ui"), name="static")
 async def root():
     return {
         "message": "OG Extractor & Chat API is running",
-        "endpoints": ["/extract", "/chat", "/docs", "/ui"]
+        "endpoints": ["/extract", "/chat", "/docs", "/ui", "/image"]
     }
 
 @app.get("/ui")
 async def read_ui():
     return FileResponse('chat_ui/index.html')
+
+@app.get("/image")
+async def read_image_ui():
+    return FileResponse('chat_ui/image.html')
 
 class ExtractRequest(BaseModel):
     url: HttpUrl
