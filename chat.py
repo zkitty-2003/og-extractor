@@ -30,7 +30,7 @@ security = HTTPBearer()
 
 class ChatRequest(BaseModel):
     message: str
-    model: Optional[str] = "openai/gpt-3.5-turbo" # Default model, can be changed
+    model: Optional[str] = "google/gemini-2.5-flash-image-preview" # Default model, can be changed
     history: Optional[List[Dict[str, str]]] = None # Optional conversation history
 
 @app.post("/chat")
