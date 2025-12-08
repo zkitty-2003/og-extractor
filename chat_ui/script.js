@@ -30,6 +30,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // Force hide modal on load to prevent ghosting
     if (apiKeyModal) apiKeyModal.style.display = 'none';
 
+    // Restore Session
+    const savedUser = localStorage.getItem('currentUser');
+    if (savedUser) {
+        try {
+            currentUser = JSON.parse(savedUser);
+            console.log("Restored session for:", currentUser.email);
+            updateUIForLogin();
+            initThemeAfterLogin(currentUser.email);
+        } catch (e) {
+            console.error("Error restoring session:", e);
+            localStorage.removeItem('currentUser');
+        }
+    }
+
     // Load Chat History
     loadChatHistory();
 
@@ -148,7 +162,6 @@ window.openLoginOverlay = function () {
 };
 
 // Google Sign-In Callback
-// Google Sign-In Callback
 function handleCredentialResponse(response) {
     if (response.credential) {
         // Send token to backend
@@ -168,6 +181,9 @@ function handleCredentialResponse(response) {
             .then(data => {
                 if (data.success) {
                     currentUser = data.user;
+                    // Save to localStorage for persistence
+                    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+
                     updateUIForLogin();
                     // Load User Theme
                     initThemeAfterLogin(currentUser.email);
@@ -216,6 +232,8 @@ function updateUIForLogin() {
 
 function handleLogout() {
     currentUser = null;
+    localStorage.removeItem('currentUser'); // Clear session
+
     const userProfile = document.getElementById('user-profile');
     const loginBtn = document.getElementById('login-btn');
     if (userProfile) userProfile.style.display = 'none';
