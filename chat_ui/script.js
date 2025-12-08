@@ -541,7 +541,7 @@ async function sendMessage() {
             body: JSON.stringify({
                 message: text,
                 history: chatHistory.map(msg => ({ role: msg.role, content: msg.content })),
-                model: "google/gemini-2.5-flash-image-preview"
+                model: "google/gemma-3-27b-it:free"
             })
         });
 
