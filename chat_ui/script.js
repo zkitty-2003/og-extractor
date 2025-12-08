@@ -505,36 +505,11 @@ let isImageMode = false;
 let selectedStyle = "";
 
 // Initialize UI Event Listeners
+// Initialize UI Event Listeners
 document.addEventListener('DOMContentLoaded', () => {
-    const plusBtn = document.getElementById('plus-btn');
-    const plusMenu = document.getElementById('plus-menu');
-    const createImageItem = document.getElementById('menu-create-image');
     const imageModeBadge = document.getElementById('image-mode-badge');
     const inputWrapper = document.getElementById('input-wrapper');
     const messageInput = document.getElementById('message-input');
-
-    // Toggle Plus Menu
-    if (plusBtn) {
-        plusBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            plusMenu.classList.toggle('show');
-        });
-    }
-
-    // Close menu when clicking outside
-    document.addEventListener('click', (e) => {
-        if (plusMenu && !plusMenu.contains(e.target) && e.target !== plusBtn) {
-            plusMenu.classList.remove('show');
-        }
-    });
-
-    // Handle "Create image" selection
-    if (createImageItem) {
-        createImageItem.addEventListener('click', () => {
-            toggleImageMode(true);
-            plusMenu.classList.remove('show');
-        });
-    }
 
     // Handle Image Mode Toggle
     function toggleImageMode(active) {

@@ -1143,10 +1143,6 @@ textarea {
     transition: transform 0.2s;
 }
 
-.ai-image:hover {
-    transform: scale(1.02);
-}
-
 /* Mobile Responsive */
 @media (max-width: 768px) {
     .sidebar {
@@ -1157,60 +1153,6 @@ textarea {
 
     .sidebar.active {
         transform: translateX(0);
-    }
-
-    .plus-menu {
-        position: absolute;
-        bottom: 80px;
-        left: 20px;
-        background-color: var(--sidebar-bg);
-        border: 1px solid var(--border-color);
-        border-radius: 12px;
-        padding: 8px;
-        width: 260px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-        display: none;
-        z-index: 1000;
-        flex-direction: column;
-    }
-
-    .plus-menu.show {
-        display: flex;
-    }
-
-    .menu-item {
-        padding: 10px 12px;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        cursor: pointer;
-        border-radius: 8px;
-        color: var(--text-color);
-        font-size: 0.95rem;
-        transition: background-color 0.2s;
-        position: relative;
-    }
-
-    .menu-item:hover {
-        background-color: var(--hover-color);
-    }
-
-    .menu-item i {
-        width: 20px;
-        text-align: center;
-        font-size: 1.1rem;
-    }
-
-    .check-icon {
-        margin-left: auto;
-        color: var(--accent-color);
-    }
-
-    /* Input Wrapper Updates */
-    .input-wrapper {
-        padding: 8px 12px;
-        align-items: center;
-        gap: 10px;
     }
 
     .input-action-btn {
