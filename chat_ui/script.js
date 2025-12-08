@@ -738,6 +738,11 @@ function startNewChat() {
     if (sidebar.classList.contains('active')) {
         sidebar.classList.remove('active');
     }
+
+    // Reset Image Mode
+    if (window.toggleImageMode) {
+        window.toggleImageMode(false);
+    }
 }
 
 // Helper to escape HTML to prevent XSS, but allow line breaks
