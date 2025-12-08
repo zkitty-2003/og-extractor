@@ -500,12 +500,93 @@ function renderMessageToUI(text, sender, id = null, images = []) {
 }
 
 // Chat Functions
+// Image Mode State
+let isImageMode = false;
+let selectedStyle = "";
+
+// Initialize UI Event Listeners
+document.addEventListener('DOMContentLoaded', () => {
+    const plusBtn = document.getElementById('plus-btn');
+    const plusMenu = document.getElementById('plus-menu');
+    const createImageItem = document.getElementById('menu-create-image');
+    const imageModeBadge = document.getElementById('image-mode-badge');
+    const stylesDropdown = document.getElementById('styles-dropdown');
+    const inputWrapper = document.getElementById('input-wrapper');
+    const messageInput = document.getElementById('message-input');
+
+    // Toggle Plus Menu
+    if (plusBtn) {
+        plusBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            plusMenu.classList.toggle('show');
+        });
+    }
+
+    // Close menu when clicking outside
+    document.addEventListener('click', (e) => {
+        if (plusMenu && !plusMenu.contains(e.target) && e.target !== plusBtn) {
+            plusMenu.classList.remove('show');
+        }
+        if (stylesDropdown && !stylesDropdown.contains(e.target)) {
+            stylesDropdown.classList.remove('active');
+        }
+    });
+
+    // Handle "Create image" selection
+    if (createImageItem) {
+        createImageItem.addEventListener('click', () => {
+            toggleImageMode(true);
+            plusMenu.classList.remove('show');
+        });
+    }
+
+    // Toggle Styles Dropdown
+    if (stylesDropdown) {
+        stylesDropdown.addEventListener('click', (e) => {
+            e.stopPropagation();
+            stylesDropdown.classList.toggle('active');
+        });
+    }
+
+    // Handle Style Selection
+    document.querySelectorAll('.style-option').forEach(option => {
+        option.addEventListener('click', (e) => {
+            e.stopPropagation();
+            selectedStyle = option.dataset.style;
+            stylesDropdown.querySelector('span').textContent = selectedStyle || "Styles";
+            stylesDropdown.classList.remove('active');
+        });
+    });
+
+    // Handle Image Mode Toggle
+    function toggleImageMode(active) {
+        isImageMode = active;
+        if (active) {
+            inputWrapper.classList.add('image-mode');
+            imageModeBadge.style.display = 'flex';
+            stylesDropdown.style.display = 'flex';
+            messageInput.placeholder = "Describe an image...";
+            createImageItem.querySelector('.check-icon').style.display = 'block';
+        } else {
+            inputWrapper.classList.remove('image-mode');
+            imageModeBadge.style.display = 'none';
+            stylesDropdown.style.display = 'none';
+            messageInput.placeholder = "Send a message...";
+            createImageItem.querySelector('.check-icon').style.display = 'none';
+            selectedStyle = "";
+            stylesDropdown.querySelector('span').textContent = "Styles";
+        }
+    }
+
+    // Expose toggle for external use if needed
+    window.toggleImageMode = toggleImageMode;
+});
+
+// Chat Functions
 async function sendMessage() {
     if (isBusy) return;
 
     const messageInput = document.getElementById('message-input');
-    const apiKeyModal = document.getElementById('api-key-modal');
-
     const text = messageInput.value.trim();
     if (!text) return;
 
@@ -526,48 +607,83 @@ async function sendMessage() {
     contentDiv.innerHTML = '<i class="fas fa-ellipsis-h fa-fade"></i>';
 
     try {
-        const headers = {
-            'Content-Type': 'application/json'
-        };
+        if (isImageMode) {
+            // --- Image Generation Flow ---
+            contentDiv.textContent = "Translating prompt...";
 
-        // Only send Authorization header if user has a custom key
-        if (apiKey) {
-            headers['Authorization'] = `Bearer ${apiKey}`;
-        }
+            // 1. Translate Prompt
+            let finalPrompt = text;
+            const thaiRegex = /[\u0E00-\u0E7F]/;
+            if (thaiRegex.test(text)) {
+                try {
+                    const transResponse = await fetch('/translate', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ text: text })
+                    });
+                    if (transResponse.ok) {
+                        const transData = await transResponse.json();
+                        finalPrompt = transData.english;
+                    }
+                } catch (e) {
+                    console.error("Translation failed, using original text");
+                }
+            }
 
-        const response = await fetch('/chat', {
-            method: 'POST',
-            headers: headers,
-            body: JSON.stringify({
-                message: text,
-                history: chatHistory.map(msg => ({ role: msg.role, content: msg.content })),
-                model: "google/gemma-3-27b-it:free"
-            })
-        });
+            // Append Style
+            if (selectedStyle) {
+                finalPrompt += `, ${selectedStyle} style`;
+            }
 
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ detail: response.statusText }));
-            throw new Error(errorData.detail || 'Server error');
-        }
+            contentDiv.textContent = "Generating image...";
 
-        const data = await response.json();
+            // 2. Generate Image URL (Pollinations)
+            const encodedPrompt = encodeURIComponent(finalPrompt);
+            const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}`;
 
-        if (data.success) {
-            const aiMessage = data.data.message;
-            const images = data.data.images || [];
+            // 3. Preload Image
+            const img = new Image();
+            img.onload = () => {
+                aiMsgElement.remove();
+                appendMessage(`Generated image for: "${text}"`, 'ai', null, [imageUrl]);
+                // Turn off image mode after success? Optional. Let's keep it on for continuous generation or turn off.
+                // window.toggleImageMode(false); // Uncomment to auto-exit image mode
+            };
+            img.onerror = () => {
+                throw new Error("Failed to generate image.");
+            };
+            img.src = imageUrl;
 
-            // Remove placeholder content
-            contentDiv.innerHTML = '';
-
-            // Update the placeholder message with actual content and images
-            // We need to re-render the message because renderMessageToUI handles the structure
-            // But since we already have the element, we can just update it or replace it.
-            // A cleaner way is to remove the placeholder and append the real message.
-            aiMsgElement.remove();
-
-            appendMessage(aiMessage, 'ai', null, images);
         } else {
-            throw new Error('Unknown error from server');
+            // --- Normal Chat Flow ---
+            const headers = { 'Content-Type': 'application/json' };
+            if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+
+            const response = await fetch('/chat', {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify({
+                    message: text,
+                    history: chatHistory.map(msg => ({ role: msg.role, content: msg.content })),
+                    model: "google/gemma-3-27b-it:free"
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ detail: response.statusText }));
+                throw new Error(errorData.detail || 'Server error');
+            }
+
+            const data = await response.json();
+
+            if (data.success) {
+                const aiMessage = data.data.message;
+                const images = data.data.images || [];
+                aiMsgElement.remove();
+                appendMessage(aiMessage, 'ai', null, images);
+            } else {
+                throw new Error('Unknown error from server');
+            }
         }
 
     } catch (error) {

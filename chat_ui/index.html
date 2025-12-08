@@ -98,65 +98,46 @@
                     <div class="bubble">
                         <div class="content">
                             สวัสดีครับ มีอะไรให้พี่ช่วยไหม
+                            <div class="panel-header">
+                                <h2>ABDUL Image Studio</h2>
+                                <button id="studio-close-btn" class="close-btn"><i class="fas fa-times"></i></button>
+                            </div>
+                            <div class="panel-content">
+                                <p class="subtitle">Generate images for free using Pollinations AI</p>
+
+                                <div class="studio-input-group">
+                                    <textarea id="studio-prompt-input"
+                                        placeholder="Describe the image you want to create (Thai or English)..."
+                                        rows="3"></textarea>
+                                    <button id="studio-generate-btn" class="studio-btn">
+                                        <i class="fas fa-magic"></i> Generate
+                                    </button>
+                                </div>
+
+                                <div id="studio-status-text" class="status-text"></div>
+
+                                <div id="studio-image-result" class="image-result-area">
+                                    <!-- Image will appear here -->
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                </div>
-            </div>
 
-            <!-- Input Area -->
-            <div class="input-area">
-                <div class="input-wrapper">
-                    <textarea id="message-input" placeholder="Send a message..." rows="1"></textarea>
-                    <button id="send-btn">
-                        <i class="fas fa-paper-plane"></i>
-                    </button>
-                </div>
-                <div class="disclaimer">ABDUL Chat may produce inaccurate information.</div>
-            </div>
-        </div>
-    </div>
+                        <!-- Login Overlay -->
+                        <div id="login-overlay" class="login-overlay" style="display: none;">
+                            <div class="login-header">
+                                <button id="back-to-chat-btn" onclick="closeLoginOverlay()">
+                                    <i class="fas fa-arrow-left"></i> Back to Chat
+                                </button>
+                            </div>
+                            <div class="login-content">
+                                <h1>User Profile</h1>
+                                <p>Sign in to your account to save your chat history.</p>
+                                <div id="google-login-container"></div>
+                            </div>
+                        </div>
 
-    <!-- Image Studio Panel -->
-    <div id="image-studio-panel" class="image-studio-panel">
-        <div class="panel-header">
-            <h2>ABDUL Image Studio</h2>
-            <button id="studio-close-btn" class="close-btn"><i class="fas fa-times"></i></button>
-        </div>
-        <div class="panel-content">
-            <p class="subtitle">Generate images for free using Pollinations AI</p>
-
-            <div class="studio-input-group">
-                <textarea id="studio-prompt-input"
-                    placeholder="Describe the image you want to create (Thai or English)..." rows="3"></textarea>
-                <button id="studio-generate-btn" class="studio-btn">
-                    <i class="fas fa-magic"></i> Generate
-                </button>
-            </div>
-
-            <div id="studio-status-text" class="status-text"></div>
-
-            <div id="studio-image-result" class="image-result-area">
-                <!-- Image will appear here -->
-            </div>
-        </div>
-    </div>
-
-    <!-- Login Overlay -->
-    <div id="login-overlay" class="login-overlay" style="display: none;">
-        <div class="login-header">
-            <button id="back-to-chat-btn" onclick="closeLoginOverlay()">
-                <i class="fas fa-arrow-left"></i> Back to Chat
-            </button>
-        </div>
-        <div class="login-content">
-            <h1>User Profile</h1>
-            <p>Sign in to your account to save your chat history.</p>
-            <div id="google-login-container"></div>
-        </div>
-    </div>
-
-    <script src="/static/script.js?v=33"></script>
-    <script src="/static/image_studio.js?v=1"></script>
+                        <script src="/static/script.js?v=33"></script>
+                        <script src="/static/image_studio.js?v=1"></script>
 </body>
 
 </html>

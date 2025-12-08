@@ -1129,3 +1129,152 @@ textarea {
         right: -100%;
     }
 }
+
+/* ChatGPT-style Input & Menu */
+.input-area {
+    position: relative;
+}
+
+.plus-menu {
+    position: absolute;
+    bottom: 80px;
+    left: 20px;
+    background-color: var(--sidebar-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 8px;
+    width: 260px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    display: none;
+    z-index: 1000;
+    flex-direction: column;
+}
+
+.plus-menu.show {
+    display: flex;
+}
+
+.menu-item {
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    border-radius: 8px;
+    color: var(--text-color);
+    font-size: 0.95rem;
+    transition: background-color 0.2s;
+    position: relative;
+}
+
+.menu-item:hover {
+    background-color: var(--hover-color);
+}
+
+.menu-item i {
+    width: 20px;
+    text-align: center;
+    font-size: 1.1rem;
+}
+
+.check-icon {
+    margin-left: auto;
+    color: var(--accent-color);
+}
+
+/* Input Wrapper Updates */
+.input-wrapper {
+    padding: 8px 12px;
+    align-items: center;
+    /* Center items vertically */
+    gap: 10px;
+}
+
+.input-action-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-color);
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+}
+
+.input-action-btn:hover {
+    background-color: var(--hover-color);
+}
+
+/* Image Mode Styles */
+.image-mode-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #3b82f6;
+    /* Blue color */
+    font-weight: 600;
+    font-size: 0.95rem;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background-color: rgba(59, 130, 246, 0.1);
+    white-space: nowrap;
+}
+
+.styles-dropdown {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-color);
+    font-size: 0.9rem;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 6px;
+    transition: background-color 0.2s;
+    position: relative;
+    white-space: nowrap;
+}
+
+.styles-dropdown:hover {
+    background-color: var(--hover-color);
+}
+
+.styles-menu {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    background-color: var(--sidebar-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 4px;
+    min-width: 150px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    display: none;
+    z-index: 1001;
+    flex-direction: column;
+}
+
+.styles-dropdown.active .styles-menu {
+    display: flex;
+}
+
+.style-option {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-radius: 6px;
+    color: var(--text-color);
+    transition: background-color 0.2s;
+}
+
+.style-option:hover {
+    background-color: var(--hover-color);
+}
+
+/* Adjust textarea in image mode */
+.input-wrapper.image-mode textarea {
+    padding-left: 0;
+}
