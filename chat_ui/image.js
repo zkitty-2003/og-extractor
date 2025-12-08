@@ -9,6 +9,29 @@ document.addEventListener('DOMContentLoaded', () => {
     // Focus input on load
     promptInput.focus();
 
+    // --- Theme Logic ---
+    function loadTheme() {
+        let theme = 'default';
+        const savedUser = localStorage.getItem('currentUser');
+
+        if (savedUser) {
+            try {
+                const user = JSON.parse(savedUser);
+                theme = localStorage.getItem('theme_' + user.email) || 'default';
+            } catch (e) {
+                console.error("Error parsing user for theme:", e);
+                theme = localStorage.getItem('chat_theme') || 'default';
+            }
+        } else {
+            theme = localStorage.getItem('chat_theme') || 'default';
+        }
+
+        document.body.setAttribute('data-theme', theme);
+    }
+
+    loadTheme();
+    // -------------------
+
     generateBtn.addEventListener('click', generateImage);
 
     promptInput.addEventListener('keypress', (e) => {
