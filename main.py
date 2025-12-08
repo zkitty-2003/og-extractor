@@ -151,7 +151,7 @@ async def translate_text(request: TranslationRequest):
     payload = {
         "model": "google/gemini-2.0-flash-exp:free",
         "messages": [
-            {"role": "system", "content": "You are a translation assistant. Translate the user’s text into natural English suitable as an image generation prompt. Respond with English only, no explanation, no extra text."},
+            {"role": "system", "content": "You are an assistant that translates Thai user prompts into short, clear, high-quality English prompts for image generation.\n\nRules:\n- Translate Thai to natural English suitable for AI image generation.\n- Keep the result concise and descriptive.\n- Do NOT explain anything.\n- Do NOT include Thai.\n- Do NOT add extra commentary.\n- Output English text only.\n- The result must be visually descriptive and usable directly in an image generator."},
             {"role": "user", "content": request.text}
         ]
     }
