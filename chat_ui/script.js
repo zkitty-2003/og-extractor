@@ -553,7 +553,7 @@ document.addEventListener('DOMContentLoaded', () => {
         option.addEventListener('click', (e) => {
             e.stopPropagation();
             selectedStyle = option.dataset.style;
-            stylesDropdown.querySelector('span').textContent = selectedStyle || "Styles";
+            // stylesDropdown.querySelector('span').textContent = selectedStyle || "Styles"; // Removed as per user request
             stylesDropdown.classList.remove('active');
         });
     });
@@ -574,7 +574,7 @@ document.addEventListener('DOMContentLoaded', () => {
             messageInput.placeholder = "Send a message...";
             createImageItem.querySelector('.check-icon').style.display = 'none';
             selectedStyle = "";
-            stylesDropdown.querySelector('span').textContent = "Styles";
+            // stylesDropdown.querySelector('span').textContent = "Styles"; // Removed
         }
     }
 
