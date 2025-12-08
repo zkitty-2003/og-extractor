@@ -103,16 +103,16 @@
                         <i class="fas fa-plus"></i>
                     </button>
 
-                    <!-- Image Mode Badge -->
-                    <div id="image-mode-badge" class="image-mode-badge" style="display: none;">
-                        <i class="fas fa-image"></i>
+                    <!-- Image Mode Badge (Click to Exit) -->
+                    <div id="image-mode-badge" class="image-mode-badge" style="display: none;"
+                        onclick="toggleImageMode(false)">
+                        <i class="fas fa-times"></i>
                         <span>Image</span>
                     </div>
 
                     <!-- Styles Dropdown (Visible in Image Mode) -->
                     <div id="styles-dropdown" class="styles-dropdown" style="display: none;">
                         <i class="fas fa-palette"></i>
-                        <!-- Removed Span -->
                         <i class="fas fa-chevron-down"></i>
                         <div class="styles-menu">
                             <div class="style-option" data-style="">None</div>
