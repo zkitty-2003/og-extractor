@@ -143,7 +143,7 @@ async def get_shared_chat(share_id: str):
 
 class ChatRequest(BaseModel):
     message: str
-    model: Optional[str] = "google/gemma-3-27b-it:free"
+    model: Optional[str] = "google/gemini-2.5-flash-image-preview"
     history: Optional[List[Dict[str, str]]] = None
 
 @app.post("/chat")
