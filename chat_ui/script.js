@@ -414,7 +414,7 @@ function loadChatSession(session) {
     }
 }
 
-function renderMessageToUI(text, sender, id = null) {
+function renderMessageToUI(text, sender, id = null, images = []) {
     const chatContainer = document.getElementById('chat-container');
     const msgDiv = document.createElement('div');
     if (id) msgDiv.id = id;
@@ -455,6 +455,26 @@ function renderMessageToUI(text, sender, id = null) {
         contentDiv.textContent = text;
     }
 
+    // Render Images
+    if (images && images.length > 0) {
+        const imageContainer = document.createElement('div');
+        imageContainer.className = 'image-container';
+        imageContainer.style.marginTop = '10px';
+
+        images.forEach(imgUrl => {
+            const img = document.createElement('img');
+            img.src = imgUrl;
+            img.alt = 'Generated Image';
+            img.style.maxWidth = '100%';
+            img.style.borderRadius = '8px';
+            img.style.marginTop = '5px';
+            img.style.cursor = 'pointer';
+            img.onclick = () => window.open(imgUrl, '_blank');
+            imageContainer.appendChild(img);
+        });
+        contentDiv.appendChild(imageContainer);
+    }
+
     bubble.appendChild(contentDiv);
 
     if (sender === 'user') {
@@ -478,9 +498,6 @@ async function sendMessage() {
 
     const text = messageInput.value.trim();
     if (!text) return;
-
-    // API Key is now optional (handled by backend fallback)
-    // if (!apiKey) { ... } -> Removed check
 
     // Lock UI
     setBusyState(true);
@@ -518,56 +535,30 @@ async function sendMessage() {
             })
         });
 
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let fullText = '';
-
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            const chunk = decoder.decode(value, { stream: true });
-
-            // Handle potential error JSON in stream
-            if (chunk.startsWith('{"error":')) {
-                try {
-                    const errData = JSON.parse(chunk);
-                    fullText = "Error: " + errData.error;
-                } catch (e) {
-                    fullText += chunk;
-                }
-            } else {
-                fullText += chunk;
-            }
-
-            // Update UI
-            // Check for Thinking Process
-            const thinkingMatch = fullText.match(/<thought>([\s\S]*?)<\/thought>/);
-            let thinkingHtml = '';
-            let mainText = fullText;
-
-            if (thinkingMatch) {
-                const thinkingContent = thinkingMatch[1].trim();
-                thinkingHtml = `
-                    <div class="thinking-process">
-                        <details open>
-                            <summary>Thinking Process</summary>
-                            <p>${escapeHtml(thinkingContent).replace(/\n/g, '<br>')}</p>
-                        </details>
-                    </div>
-                `;
-                mainText = fullText.replace(thinkingMatch[0], '').trim();
-            } else if (fullText.includes('<thought>')) {
-                // Partial thought tag, don't render yet or render partially
-            }
-
-            contentDiv.innerHTML = thinkingHtml + marked.parse(mainText);
-            scrollToBottom();
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ detail: response.statusText }));
+            throw new Error(errorData.detail || 'Server error');
         }
 
-        // Final update to state
-        chatHistory.push({ role: "assistant", content: fullText });
-        saveChatHistory();
+        const data = await response.json();
+
+        if (data.success) {
+            const aiMessage = data.data.message;
+            const images = data.data.images || [];
+
+            // Remove placeholder content
+            contentDiv.innerHTML = '';
+
+            // Update the placeholder message with actual content and images
+            // We need to re-render the message because renderMessageToUI handles the structure
+            // But since we already have the element, we can just update it or replace it.
+            // A cleaner way is to remove the placeholder and append the real message.
+            aiMsgElement.remove();
+
+            appendMessage(aiMessage, 'ai', null, images);
+        } else {
+            throw new Error('Unknown error from server');
+        }
 
     } catch (error) {
         contentDiv.textContent = 'Error: ' + error.message;
@@ -578,14 +569,14 @@ async function sendMessage() {
     }
 }
 
-function appendMessage(text, sender, id = null) {
+function appendMessage(text, sender, id = null, images = []) {
     // Render UI
-    renderMessageToUI(text, sender, id);
+    renderMessageToUI(text, sender, id, images);
 
     // Save History only if it's a user message or completed AI message (not placeholder)
     if (!id) {
         // Update State
-        chatHistory.push({ role: sender === 'user' ? "user" : "assistant", content: text });
+        chatHistory.push({ role: sender === 'user' ? "user" : "assistant", content: text, images: images });
         saveChatHistory();
     }
 }

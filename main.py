@@ -5,7 +5,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, HttpUrl
 import httpx
 from bs4 import BeautifulSoup
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 from fastapi.middleware.cors import CORSMiddleware
 import json
 import os
@@ -145,6 +145,7 @@ class ChatRequest(BaseModel):
     message: str
     model: Optional[str] = "google/gemini-2.5-flash-image-preview"
     history: Optional[List[Dict[str, str]]] = None
+    image_config: Optional[Dict[str, Any]] = None
 
 @app.post("/chat")
 async def chat_with_ai(
@@ -182,47 +183,71 @@ async def chat_with_ai(
         
     messages.append({"role": "user", "content": request.message})
 
-    async def stream_generator():
-        try:
-            async with httpx.AsyncClient(timeout=30) as client:
-                async with client.stream(
-                    "POST",
-                    "https://openrouter.ai/api/v1/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {api_key}",
-                        "Content-Type": "application/json",
-                        "HTTP-Referer": "https://og-extractor-zxkk.onrender.com",
-                        "X-Title": "FastAPI Chat"
-                    },
-                    json={
-                        "model": request.model,
-                        "messages": messages,
-                        "stream": True
-                    }
-                ) as response:
-                    if response.status_code != 200:
-                        error_detail = await response.aread()
-                        yield json.dumps({"error": f"Error: {response.status_code} - {error_detail.decode()}"}) + "\n"
-                        return
+    # Construct Payload for Image Generation
+    payload = {
+        "model": request.model,
+        "messages": messages,
+        "modalities": ["image", "text"], # Enable image generation
+        "image_config": request.image_config or {"aspect_ratio": "1:1"} # Default aspect ratio
+    }
 
-                    async for line in response.aiter_lines():
-                        if line.startswith("data: "):
-                            data_str = line[6:]
-                            if data_str.strip() == "[DONE]":
-                                break
-                            try:
-                                data = json.loads(data_str)
-                                if "choices" in data and len(data["choices"]) > 0:
-                                    delta = data["choices"][0].get("delta", {})
-                                    content = delta.get("content", "")
-                                    if content:
-                                        yield content
-                            except json.JSONDecodeError:
-                                continue
-        except Exception as e:
-            yield json.dumps({"error": str(e)}) + "\n"
+    try:
+        async with httpx.AsyncClient(timeout=60) as client: # Increased timeout for image gen
+            response = await client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "https://og-extractor-zxkk.onrender.com",
+                    "X-Title": "FastAPI Chat"
+                },
+                json=payload
+            )
+            
+            if response.status_code != 200:
+                error_detail = response.text
+                try:
+                    error_json = response.json()
+                    if "error" in error_json:
+                        error_detail = error_json["error"]["message"]
+                except:
+                    pass
+                raise HTTPException(status_code=response.status_code, detail=f"OpenRouter Error: {error_detail}")
 
-    return StreamingResponse(stream_generator(), media_type="text/plain")
+            data = response.json()
+            
+            # Extract content and images
+            ai_message = ""
+            images = []
+            
+            if "choices" in data and len(data["choices"]) > 0:
+                message_obj = data["choices"][0]["message"]
+                
+                # Handle multi-modal content (if OpenRouter returns it this way)
+                if isinstance(message_obj.get("content"), list):
+                    for item in message_obj["content"]:
+                        if item.get("type") == "text":
+                            ai_message += item.get("text", "")
+                        elif item.get("type") == "image_url":
+                            images.append(item["image_url"]["url"])
+                else:
+                    # Standard text content
+                    ai_message = message_obj.get("content", "")
+                    
+            return {
+                "success": True,
+                "data": {
+                    "message": ai_message,
+                    "images": images, # List of image URLs
+                    "model": data.get("model"),
+                    "raw": data # For debugging
+                }
+            }
+
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=500, detail=f"Connection error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
