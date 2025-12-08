@@ -514,14 +514,18 @@ document.addEventListener('DOMContentLoaded', () => {
     // Handle Image Mode Toggle
     function toggleImageMode(active) {
         isImageMode = active;
+        const createTrigger = document.getElementById('create-image-trigger');
+
         if (active) {
             inputWrapper.classList.add('image-mode');
             imageModeBadge.style.display = 'flex';
             messageInput.placeholder = "Describe an image...";
+            if (createTrigger) createTrigger.style.display = 'none';
         } else {
             inputWrapper.classList.remove('image-mode');
             imageModeBadge.style.display = 'none';
             messageInput.placeholder = "Send a message...";
+            if (createTrigger) createTrigger.style.display = 'flex';
         }
         // Focus input
         if (messageInput) messageInput.focus();
