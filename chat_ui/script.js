@@ -7,7 +7,7 @@ let isBusy = false; // Flag to prevent multiple requests
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("Chat UI v15 loaded - Streaming Enabled");
+    console.log("Chat UI v16 loaded - Image Gen Enabled");
     // DOM Elements
     const messageInput = document.getElementById('message-input');
     const sendBtn = document.getElementById('send-btn');
@@ -404,7 +404,7 @@ function loadChatSession(session) {
 
     // Render messages
     chatHistory.forEach(msg => {
-        renderMessageToUI(msg.content, msg.role === 'user' ? 'user' : 'ai');
+        renderMessageToUI(msg.content, msg.role === 'user' ? 'user' : 'ai', null, msg.images);
     });
 
     // Close mobile menu if open
@@ -457,22 +457,14 @@ function renderMessageToUI(text, sender, id = null, images = []) {
 
     // Render Images
     if (images && images.length > 0) {
-        const imageContainer = document.createElement('div');
-        imageContainer.className = 'image-container';
-        imageContainer.style.marginTop = '10px';
-
         images.forEach(imgUrl => {
             const img = document.createElement('img');
             img.src = imgUrl;
+            img.className = 'ai-image'; // Use requested class
             img.alt = 'Generated Image';
-            img.style.maxWidth = '100%';
-            img.style.borderRadius = '8px';
-            img.style.marginTop = '5px';
-            img.style.cursor = 'pointer';
             img.onclick = () => window.open(imgUrl, '_blank');
-            imageContainer.appendChild(img);
+            contentDiv.appendChild(img);
         });
-        contentDiv.appendChild(imageContainer);
     }
 
     bubble.appendChild(contentDiv);

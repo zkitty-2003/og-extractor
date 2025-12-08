@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, HttpUrl
 import httpx
 from bs4 import BeautifulSoup
@@ -187,12 +187,13 @@ async def chat_with_ai(
     payload = {
         "model": request.model,
         "messages": messages,
-        "modalities": ["image", "text"], # Enable image generation
-        "image_config": request.image_config or {"aspect_ratio": "1:1"} # Default aspect ratio
+        "modalities": ["image", "text"],
+        "image_config": request.image_config or {"aspect_ratio": "16:9"}, # Default 16:9 as requested
+        "stream": False
     }
 
     try:
-        async with httpx.AsyncClient(timeout=60) as client: # Increased timeout for image gen
+        async with httpx.AsyncClient(timeout=60) as client:
             response = await client.post(
                 "https://openrouter.ai/api/v1/chat/completions",
                 headers={
@@ -222,25 +223,21 @@ async def chat_with_ai(
             
             if "choices" in data and len(data["choices"]) > 0:
                 message_obj = data["choices"][0]["message"]
+                ai_message = message_obj.get("content", "")
                 
-                # Handle multi-modal content (if OpenRouter returns it this way)
-                if isinstance(message_obj.get("content"), list):
-                    for item in message_obj["content"]:
-                        if item.get("type") == "text":
-                            ai_message += item.get("text", "")
-                        elif item.get("type") == "image_url":
-                            images.append(item["image_url"]["url"])
-                else:
-                    # Standard text content
-                    ai_message = message_obj.get("content", "")
+                # Extract images from specific field as requested
+                # choices[0].message.images[*].image_url.url
+                if "images" in message_obj:
+                    for img in message_obj["images"]:
+                        if "image_url" in img and "url" in img["image_url"]:
+                            images.append(img["image_url"]["url"])
                     
             return {
                 "success": True,
                 "data": {
                     "message": ai_message,
-                    "images": images, # List of image URLs
-                    "model": data.get("model"),
-                    "raw": data # For debugging
+                    "images": images,
+                    "model": data.get("model")
                 }
             }
 
