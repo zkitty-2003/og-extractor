@@ -133,6 +133,63 @@ class ShareRequest(BaseModel):
 async def share_chat(request: ShareRequest):
     share_id = str(uuid.uuid4())
     SHARED_CHATS[share_id] = request.messages
+    return {"messages": SHARED_CHATS[share_id]}
+
+# ==============================
+# 4) Translation API
+# ==============================
+
+class TranslationRequest(BaseModel):
+    text: str
+
+@app.post("/translate")
+async def translate_text(request: TranslationRequest):
+    api_key = os.environ.get("OPENROUTER_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=401, detail="API Key missing")
+
+    payload = {
+        "model": "google/gemini-2.0-flash-exp:free",
+        "messages": [
+            {"role": "system", "content": "You are a translation assistant. Translate the user’s text into natural English suitable as an image generation prompt. Respond with English only, no explanation, no extra text."},
+            {"role": "user", "content": request.text}
+        ]
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "https://og-extractor-zxkk.onrender.com",
+                    "X-Title": "FastAPI Chat"
+                },
+                json=payload
+            )
+            
+            if response.status_code != 200:
+                raise HTTPException(status_code=response.status_code, detail="Translation failed")
+
+            data = response.json()
+            if "choices" in data and len(data["choices"]) > 0:
+                english_text = data["choices"][0]["message"]["content"].strip()
+                return {"english": english_text}
+            else:
+                raise HTTPException(status_code=500, detail="No translation returned")
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Translation error: {str(e)}")
+
+# ==============================
+# 5) Chat API (OpenRouter)
+# ==============================
+
+class ChatRequest(BaseModel):
+    message: str
+    model: Optional[str] = "google/gemma-3-27b-it:free"
+    history: Optional[List[Dict[str, str]]] = None
     image_config: Optional[Dict[str, Any]] = None
 
 @app.post("/chat")
