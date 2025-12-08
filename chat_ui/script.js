@@ -510,7 +510,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const plusMenu = document.getElementById('plus-menu');
     const createImageItem = document.getElementById('menu-create-image');
     const imageModeBadge = document.getElementById('image-mode-badge');
-    const stylesDropdown = document.getElementById('styles-dropdown');
     const inputWrapper = document.getElementById('input-wrapper');
     const messageInput = document.getElementById('message-input');
 
@@ -527,9 +526,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (plusMenu && !plusMenu.contains(e.target) && e.target !== plusBtn) {
             plusMenu.classList.remove('show');
         }
-        if (stylesDropdown && !stylesDropdown.contains(e.target)) {
-            stylesDropdown.classList.remove('active');
-        }
     });
 
     // Handle "Create image" selection
@@ -540,45 +536,23 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Toggle Styles Dropdown
-    if (stylesDropdown) {
-        stylesDropdown.addEventListener('click', (e) => {
-            e.stopPropagation();
-            stylesDropdown.classList.toggle('active');
-        });
-    }
-
-    // Handle Style Selection
-    document.querySelectorAll('.style-option').forEach(option => {
-        option.addEventListener('click', (e) => {
-            e.stopPropagation();
-            selectedStyle = option.dataset.style;
-            // stylesDropdown.querySelector('span').textContent = selectedStyle || "Styles"; // Removed as per user request
-            stylesDropdown.classList.remove('active');
-        });
-    });
-
     // Handle Image Mode Toggle
     function toggleImageMode(active) {
         isImageMode = active;
         if (active) {
             inputWrapper.classList.add('image-mode');
             imageModeBadge.style.display = 'flex';
-            stylesDropdown.style.display = 'flex';
             messageInput.placeholder = "Describe an image...";
-            createImageItem.querySelector('.check-icon').style.display = 'block';
         } else {
             inputWrapper.classList.remove('image-mode');
             imageModeBadge.style.display = 'none';
-            stylesDropdown.style.display = 'none';
             messageInput.placeholder = "Send a message...";
-            createImageItem.querySelector('.check-icon').style.display = 'none';
-            selectedStyle = "";
-            // stylesDropdown.querySelector('span').textContent = "Styles"; // Removed
         }
+        // Focus input
+        if (messageInput) messageInput.focus();
     }
 
-    // Expose toggle for external use if needed
+    // Expose toggle for external use
     window.toggleImageMode = toggleImageMode;
 });
 
