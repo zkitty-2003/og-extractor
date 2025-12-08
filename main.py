@@ -133,22 +133,6 @@ class ShareRequest(BaseModel):
 async def share_chat(request: ShareRequest):
     share_id = str(uuid.uuid4())
     SHARED_CHATS[share_id] = request.messages
-    return {"id": share_id}
-
-@app.get("/share/{share_id}")
-async def get_shared_chat(share_id: str):
-    if share_id not in SHARED_CHATS:
-        raise HTTPException(status_code=404, detail="Shared chat not found")
-    return {"messages": SHARED_CHATS[share_id]}
-
-# ==============================
-# 4) Chat API (OpenRouter)
-# ==============================
-
-class ChatRequest(BaseModel):
-    message: str
-    model: Optional[str] = "google/gemma-3-27b-it:free"
-    history: Optional[List[Dict[str, str]]] = None
     image_config: Optional[Dict[str, Any]] = None
 
 @app.post("/chat")
