@@ -142,8 +142,8 @@ async def share_chat(request: ShareRequest):
 async def _translate_logic(text: str, api_key: str) -> str:
     # List of models to try in order
     models = [
-        "meta-llama/llama-3.2-3b-instruct:free",
         "google/gemini-2.0-flash-exp:free",
+        "meta-llama/llama-3.2-3b-instruct:free",
         "huggingfaceh4/zephyr-7b-beta:free",
         "mistralai/mistral-7b-instruct:free",
         "openchat/openchat-7b:free"
