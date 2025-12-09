@@ -139,6 +139,36 @@ async def share_chat(request: ShareRequest):
 # 4) Translation API
 # ==============================
 
+async def _translate_logic(text: str, api_key: str) -> str:
+    payload = {
+        "model": "google/gemini-2.0-flash-exp:free",
+        "messages": [
+            {"role": "system", "content": "You are a strict translation engine for image prompts.\n\nYour job:\n- Input: Thai text describing an image.\n- Output: a SHORT English prompt that can be sent directly to an image generation model.\n- Output MUST be in English ONLY. No Thai, no explanations, no extra sentences.\n- Do NOT add quotes around the text.\n- Do NOT say things like \"Here is your prompt\" or \"The translation is\".\n- Just output the prompt text itself.\n\nStyle rules:\n- Keep it concise but descriptive enough for an image (5–20 words).\n- If the Thai input is only one word (e.g., \"กระต่าย\"), output 1–3 English words (e.g., \"rabbit\", \"cute white rabbit\").\n- You may add 1–2 visual adjectives if they make sense, but NEVER change the main subject.\n\nIf you break any of these rules, the system will not work.\n\nExamples:\n\nThai: กระต่าย\nEnglish: rabbit\n\nThai: กระต่ายน่ารัก\nEnglish: cute rabbit\n\nThai: กระต่ายน่ารักบนดวงจันทร์\nEnglish: cute rabbit sitting on the moon, night sky, stars\n\nThai: ทะเลช่วงพระอาทิตย์ตก\nEnglish: sunset over the sea, warm colors, calm waves"},
+            {"role": "user", "content": text}
+        ]
+    }
+
+    async with httpx.AsyncClient(timeout=30) as client:
+        response = await client.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+                "HTTP-Referer": "https://og-extractor-zxkk.onrender.com",
+                "X-Title": "FastAPI Chat"
+            },
+            json=payload
+        )
+        
+        if response.status_code != 200:
+            raise HTTPException(status_code=response.status_code, detail="Translation failed")
+
+        data = response.json()
+        if "choices" in data and len(data["choices"]) > 0:
+            return data["choices"][0]["message"]["content"].strip()
+        else:
+            raise HTTPException(status_code=500, detail="No translation returned")
+
 class TranslationRequest(BaseModel):
     text: str
 
@@ -148,37 +178,9 @@ async def translate_text(request: TranslationRequest):
     if not api_key:
         raise HTTPException(status_code=401, detail="API Key missing")
 
-    payload = {
-        "model": "google/gemini-2.0-flash-exp:free",
-        "messages": [
-            {"role": "system", "content": "You are a strict translation engine for image prompts.\n\nYour job:\n- Input: Thai text describing an image.\n- Output: a SHORT English prompt that can be sent directly to an image generation model.\n- Output MUST be in English ONLY. No Thai, no explanations, no extra sentences.\n- Do NOT add quotes around the text.\n- Do NOT say things like \"Here is your prompt\" or \"The translation is\".\n- Just output the prompt text itself.\n\nStyle rules:\n- Keep it concise but descriptive enough for an image (5–20 words).\n- If the Thai input is only one word (e.g., \"กระต่าย\"), output 1–3 English words (e.g., \"rabbit\", \"cute white rabbit\").\n- You may add 1–2 visual adjectives if they make sense, but NEVER change the main subject.\n\nIf you break any of these rules, the system will not work.\n\nExamples:\n\nThai: กระต่าย\nEnglish: rabbit\n\nThai: กระต่ายน่ารัก\nEnglish: cute rabbit\n\nThai: กระต่ายน่ารักบนดวงจันทร์\nEnglish: cute rabbit sitting on the moon, night sky, stars\n\nThai: ทะเลช่วงพระอาทิตย์ตก\nEnglish: sunset over the sea, warm colors, calm waves"},
-            {"role": "user", "content": request.text}
-        ]
-    }
-
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            response = await client.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                    "HTTP-Referer": "https://og-extractor-zxkk.onrender.com",
-                    "X-Title": "FastAPI Chat"
-                },
-                json=payload
-            )
-            
-            if response.status_code != 200:
-                raise HTTPException(status_code=response.status_code, detail="Translation failed")
-
-            data = response.json()
-            if "choices" in data and len(data["choices"]) > 0:
-                english_text = data["choices"][0]["message"]["content"].strip()
-                return {"english": english_text}
-            else:
-                raise HTTPException(status_code=500, detail="No translation returned")
-
+        english_text = await _translate_logic(request.text, api_key)
+        return {"english": english_text}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Translation error: {str(e)}")
 
@@ -213,6 +215,39 @@ async def chat_with_ai(
             status_code=401, 
             detail="API Key missing. Please provide one or set OPENROUTER_API_KEY on server."
         )
+
+    # Handle /translate command
+    if request.message.strip().startswith("/translate"):
+        text_to_translate = request.message.strip()[10:].strip()
+        if not text_to_translate:
+            return {
+                "success": True,
+                "data": {
+                    "message": "Please provide text to translate. Usage: /translate [Thai text]",
+                    "images": [],
+                    "model": "system"
+                }
+            }
+        
+        try:
+            translated_text = await _translate_logic(text_to_translate, api_key)
+            return {
+                "success": True,
+                "data": {
+                    "message": translated_text,
+                    "images": [],
+                    "model": "google/gemini-2.0-flash-exp:free"
+                }
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "data": {
+                    "message": f"Translation error: {str(e)}",
+                    "images": [],
+                    "model": "error"
+                }
+            }
 
     messages = request.history or []
     
