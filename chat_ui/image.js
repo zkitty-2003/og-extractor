@@ -46,42 +46,81 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // UI State: Loading
         generateBtn.disabled = true;
-        generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+        generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Translating...';
 
         loadingSpinner.style.display = 'flex';
         generatedImage.style.display = 'none';
         placeholderText.style.display = 'none';
 
-        // Construct Pollinations URL
-        // Using encodeURIComponent to handle special characters
-        const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}`;
+        // Async wrapper to handle translation
+        (async () => {
+            let finalPrompt = prompt;
+            const apiKey = localStorage.getItem('openrouter_api_key') || '';
 
-        // Preload image to check when it's ready
-        const img = new Image();
-        img.onload = () => {
-            // Success
-            generatedImage.src = imageUrl;
-            generatedImage.style.display = 'block';
-            loadingSpinner.style.display = 'none';
+            // 1. Translate if Thai
+            const thaiRegex = /[\u0E00-\u0E7F]/;
+            if (thaiRegex.test(prompt)) {
+                try {
+                    const headers = { 'Content-Type': 'application/json' };
+                    if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
 
-            // Reset Button
-            generateBtn.disabled = false;
-            generateBtn.innerHTML = '<i class="fas fa-magic"></i> Generate';
-        };
+                    const transResponse = await fetch('/translate', {
+                        method: 'POST',
+                        headers: headers,
+                        body: JSON.stringify({ text: prompt })
+                    });
 
-        img.onerror = () => {
-            // Error
-            loadingSpinner.style.display = 'none';
-            placeholderText.style.display = 'block';
-            placeholderText.textContent = 'Failed to generate image. Please try again.';
-            placeholderText.style.color = '#ef4444';
+                    if (transResponse.ok) {
+                        const transData = await transResponse.json();
+                        finalPrompt = transData.english;
+                        // Update UI to show we are generating with new prompt
+                        generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+                    } else {
+                        console.error("Translation failed status:", transResponse.status);
+                    }
+                } catch (e) {
+                    console.error("Translation failed:", e);
+                }
+            }
 
-            // Reset Button
-            generateBtn.disabled = false;
-            generateBtn.innerHTML = '<i class="fas fa-magic"></i> Generate';
-        };
+            // 2. Construct Pollinations URL
+            const encodedPrompt = encodeURIComponent(finalPrompt);
+            const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}`;
 
-        // Trigger load
-        img.src = imageUrl;
+            // 3. Preload image
+            const img = new Image();
+            img.onload = () => {
+                // Success
+                generatedImage.src = imageUrl;
+                generatedImage.style.display = 'block';
+                loadingSpinner.style.display = 'none';
+
+                // Show translated prompt if different
+                if (finalPrompt !== prompt) {
+                    placeholderText.style.display = 'block';
+                    placeholderText.style.color = '#666';
+                    placeholderText.textContent = `Translated: "${finalPrompt}"`;
+                }
+
+                // Reset Button
+                generateBtn.disabled = false;
+                generateBtn.innerHTML = '<i class="fas fa-magic"></i> Generate';
+            };
+
+            img.onerror = () => {
+                // Error
+                loadingSpinner.style.display = 'none';
+                placeholderText.style.display = 'block';
+                placeholderText.textContent = 'Failed to generate image. Please try again.';
+                placeholderText.style.color = '#ef4444';
+
+                // Reset Button
+                generateBtn.disabled = false;
+                generateBtn.innerHTML = '<i class="fas fa-magic"></i> Generate';
+            };
+
+            // Trigger load
+            img.src = imageUrl;
+        })();
     }
 });
