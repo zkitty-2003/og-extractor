@@ -143,15 +143,15 @@ async def _translate_logic(text: str, api_key: str) -> str:
     # List of models to try in order
     models = [
         "google/gemini-2.0-flash-exp:free",
-        "meta-llama/llama-3.1-8b-instruct:free",
-        "meta-llama/llama-3.1-70b-instruct:free",
-        "microsoft/phi-3-mini-128k-instruct:free",
-        "qwen/qwen-2-7b-instruct:free"
+        "huggingfaceh4/zephyr-7b-beta:free",
+        "mistralai/mistral-7b-instruct:free",
+        "gryphe/mythomax-l2-13b:free",
+        "openchat/openchat-7b:free"
     ]
 
     errors = []
 
-    async with httpx.AsyncClient(timeout=30) as client:
+    async with httpx.AsyncClient(timeout=60) as client:
         for model in models:
             try:
                 payload = {
@@ -190,8 +190,9 @@ async def _translate_logic(text: str, api_key: str) -> str:
                 errors.append(error_msg)
                 continue # Try next model
 
-    # If all models fail, raise exception so UI knows it failed
-    raise HTTPException(status_code=500, detail=f"All translation models failed. Errors: {'; '.join(errors)}")
+    # If all models fail, return original text to prevent 500 error
+    print(f"All translation models failed. Returning original text. Errors: {errors}")
+    return text
 
 class TranslationRequest(BaseModel):
     text: str

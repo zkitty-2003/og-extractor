@@ -71,6 +71,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+
+
     if (mobileMenuBtn) {
         mobileMenuBtn.addEventListener('click', () => {
             sidebar.classList.toggle('active');
@@ -466,7 +468,6 @@ function renderMessageToUI(text, sender, id = null, images = []) {
             `;
             mainText = text.replace(thinkingMatch[0], '').trim();
         }
-        // marked.parse จะจัดการ \n ให้เอง (แปลงเป็น <p>/<br>)
         contentDiv.innerHTML = thinkingHtml + marked.parse(mainText);
     } else {
         contentDiv.textContent = text;
@@ -498,11 +499,13 @@ function renderMessageToUI(text, sender, id = null, images = []) {
     scrollToBottom();
 }
 
+// Chat Functions
 // Image Mode State
 let isImageMode = false;
 let selectedStyle = "";
 
-// Initialize UI Event Listeners for Image Mode
+// Initialize UI Event Listeners
+// Initialize UI Event Listeners
 document.addEventListener('DOMContentLoaded', () => {
     const imageModeBadge = document.getElementById('image-mode-badge');
     const inputWrapper = document.getElementById('input-wrapper');
@@ -561,10 +564,10 @@ async function sendMessage() {
             // --- Image Generation Flow ---
             contentDiv.textContent = "Translating prompt...";
 
+            // 1. Translate Prompt
             let finalPrompt = text;
             const thaiRegex = /[\u0E00-\u0E7F]/;
 
-            // 1) Translate Thai → English ด้วย /translate
             if (thaiRegex.test(text)) {
                 try {
                     const headers = { 'Content-Type': 'application/json' };
@@ -573,45 +576,39 @@ async function sendMessage() {
                     const transResponse = await fetch('/translate', {
                         method: 'POST',
                         headers: headers,
-                        body: JSON.stringify({ text })
+                        body: JSON.stringify({ text: text })
                     });
 
                     if (transResponse.ok) {
                         const transData = await transResponse.json();
                         finalPrompt = transData.english;
-                        console.log('[IMAGE] Translated:', { thai: text, english: finalPrompt });
+                        console.log(`Translated "${text}" -> "${finalPrompt}"`);
                     } else {
                         const errorText = await transResponse.text().catch(() => "Unknown error");
-                        console.error(`[IMAGE] Translation failed ${transResponse.status}: ${errorText}`);
+                        console.error(`Translation failed with status ${transResponse.status}: ${errorText}`);
                     }
                 } catch (e) {
-                    console.error("[IMAGE] Translation network/logic error:", e);
+                    console.error("Translation network/logic error:", e);
                 }
             }
 
-            // 2) Append style ถ้าเลือกไว้
+            // Append Style
             if (selectedStyle) {
                 finalPrompt += `, ${selectedStyle} style`;
             }
 
             contentDiv.textContent = "Generating image...";
 
-            // 3) Generate Image URL (Pollinations)
+            // 2. Generate Image URL (Pollinations)
             const encodedPrompt = encodeURIComponent(finalPrompt);
             const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}`;
-            console.log('[IMAGE] Final prompt & URL:', finalPrompt, imageUrl);
 
-            // 4) Preload Image
+            // 3. Preload Image
             const img = new Image();
             img.onload = () => {
                 aiMsgElement.remove();
-
-                // แสดงทั้งข้อความไทย + English prompt ในบับเบิลเดียวกัน
-                let displayMsg = `Generated image for: "${text}"`;
-                if (finalPrompt !== text) {
-                    displayMsg += `\n(English prompt: ${finalPrompt})`;
-                }
-
+                // User Requirement: Show English prompt for debugging
+                const displayMsg = `Generated image for: "${text}"<br><small style="color:#888">(English prompt: ${finalPrompt})</small>`;
                 appendMessage(displayMsg, 'ai', null, [imageUrl]);
             };
             img.onerror = () => {
@@ -630,7 +627,7 @@ async function sendMessage() {
                 body: JSON.stringify({
                     message: text,
                     history: chatHistory.map(msg => ({ role: msg.role, content: msg.content })),
-                    model: "google/gemini-2.0-flash-exp:free"
+                    model: "google/gemma-3-27b-it:free"
                 })
             });
 
@@ -659,6 +656,8 @@ async function sendMessage() {
         setBusyState(false);
     }
 }
+
+
 
 function appendMessage(text, sender, id = null, images = []) {
     // Render UI
@@ -764,12 +763,7 @@ async function shareCurrentChat() {
         if (!response.ok) throw new Error("Share failed");
 
         const data = await response.json();
-        const shareId = data.id || data.share_id;
-        if (!shareId) {
-            throw new Error("Share id missing from response");
-        }
-
-        const shareUrl = `${window.location.origin}${window.location.pathname}?share=${shareId}`;
+        const shareUrl = `${window.location.origin}${window.location.pathname}?share=${data.id}`;
 
         await navigator.clipboard.writeText(shareUrl);
         alert("คัดลอกลิงก์แชร์เรียบร้อยแล้ว! ส่งให้เพื่อนได้เลยครับ\n\n" + shareUrl);
@@ -816,6 +810,7 @@ async function loadSharedChat(shareId) {
     }
 }
 
+// Theme Management
 // Theme Management
 function loadThemeForUser(userId) {
     return localStorage.getItem('theme_' + userId);
