@@ -77,9 +77,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
                     } else {
                         console.error("Translation failed status:", transResponse.status);
+                        placeholderText.style.display = 'block';
+                        placeholderText.style.color = '#ef4444';
+                        placeholderText.textContent = `Translation failed (${transResponse.status}). Using original text.`;
                     }
                 } catch (e) {
                     console.error("Translation failed:", e);
+                    placeholderText.style.display = 'block';
+                    placeholderText.style.color = '#ef4444';
+                    placeholderText.textContent = `Translation error. Using original text.`;
                 }
             }
 

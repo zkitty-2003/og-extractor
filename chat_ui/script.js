@@ -567,6 +567,7 @@ async function sendMessage() {
             // 1. Translate Prompt
             let finalPrompt = text;
             const thaiRegex = /[\u0E00-\u0E7F]/;
+
             if (thaiRegex.test(text)) {
                 try {
                     const headers = { 'Content-Type': 'application/json' };
@@ -577,12 +578,18 @@ async function sendMessage() {
                         headers: headers,
                         body: JSON.stringify({ text: text })
                     });
+
                     if (transResponse.ok) {
                         const transData = await transResponse.json();
                         finalPrompt = transData.english;
+                        console.log(`Translated "${text}" -> "${finalPrompt}"`);
+                    } else {
+                        console.error("Translation failed status:", transResponse.status);
+                        // Fallback to original text is automatic since finalPrompt = text initially
+                        // We can log it or show a small toast, but user asked to just use original if fail
                     }
                 } catch (e) {
-                    console.error("Translation failed, using original text");
+                    console.error("Translation error:", e);
                 }
             }
 
@@ -601,10 +608,9 @@ async function sendMessage() {
             const img = new Image();
             img.onload = () => {
                 aiMsgElement.remove();
-                const displayMsg = finalPrompt !== text ? `Generated image for: "${text}" (${finalPrompt})` : `Generated image for: "${text}"`;
+                // User Requirement: Show ONLY original text in chat bubble
+                const displayMsg = `Generated image for: "${text}"`;
                 appendMessage(displayMsg, 'ai', null, [imageUrl]);
-                // Turn off image mode after success? Optional. Let's keep it on for continuous generation or turn off.
-                // window.toggleImageMode(false); // Uncomment to auto-exit image mode
             };
             img.onerror = () => {
                 throw new Error("Failed to generate image.");
@@ -651,6 +657,8 @@ async function sendMessage() {
         setBusyState(false);
     }
 }
+
+
 
 function appendMessage(text, sender, id = null, images = []) {
     // Render UI
