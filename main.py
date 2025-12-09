@@ -145,8 +145,11 @@ async def _translate_logic(text: str, api_key: str) -> str:
         "google/gemini-2.0-flash-exp:free",
         "google/gemini-2.0-flash-thinking-exp:free",
         "google/gemma-2-9b-it:free",
-        "meta-llama/llama-3.2-11b-vision-instruct:free"
+        "meta-llama/llama-3.2-11b-vision-instruct:free",
+        "microsoft/phi-3-medium-128k-instruct:free"
     ]
+
+    errors = []
 
     async with httpx.AsyncClient(timeout=30) as client:
         for model in models:
@@ -176,16 +179,19 @@ async def _translate_logic(text: str, api_key: str) -> str:
                         return data["choices"][0]["message"]["content"].strip()
                 
                 # If we get here, the request failed (non-200) or empty choices
-                print(f"Model {model} failed with status {response.status_code}")
+                error_msg = f"Model {model} failed: {response.status_code} - {response.text[:200]}"
+                print(error_msg)
+                errors.append(error_msg)
                 continue # Try next model
 
             except Exception as e:
-                print(f"Model {model} error: {str(e)}")
+                error_msg = f"Model {model} error: {str(e)}"
+                print(error_msg)
+                errors.append(error_msg)
                 continue # Try next model
 
-    # If all models fail, return original text to prevent 500 error
-    print("All translation models failed. Returning original text.")
-    return text
+    # If all models fail, raise exception so UI knows it failed
+    raise HTTPException(status_code=500, detail=f"All translation models failed. Errors: {'; '.join(errors)}")
 
 class TranslationRequest(BaseModel):
     text: str
