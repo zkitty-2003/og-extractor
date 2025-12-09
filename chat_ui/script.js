@@ -569,9 +569,12 @@ async function sendMessage() {
             const thaiRegex = /[\u0E00-\u0E7F]/;
             if (thaiRegex.test(text)) {
                 try {
+                    const headers = { 'Content-Type': 'application/json' };
+                    if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+
                     const transResponse = await fetch('/translate', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: headers,
                         body: JSON.stringify({ text: text })
                     });
                     if (transResponse.ok) {
@@ -598,7 +601,8 @@ async function sendMessage() {
             const img = new Image();
             img.onload = () => {
                 aiMsgElement.remove();
-                appendMessage(`Generated image for: "${text}"`, 'ai', null, [imageUrl]);
+                const displayMsg = finalPrompt !== text ? `Generated image for: "${text}" (${finalPrompt})` : `Generated image for: "${text}"`;
+                appendMessage(displayMsg, 'ai', null, [imageUrl]);
                 // Turn off image mode after success? Optional. Let's keep it on for continuous generation or turn off.
                 // window.toggleImageMode(false); // Uncomment to auto-exit image mode
             };

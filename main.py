@@ -173,8 +173,21 @@ class TranslationRequest(BaseModel):
     text: str
 
 @app.post("/translate")
-async def translate_text(request: TranslationRequest):
-    api_key = os.environ.get("OPENROUTER_API_KEY")
+async def translate_text(
+    request: TranslationRequest,
+    creds: Optional[HTTPAuthorizationCredentials] = Depends(security)
+):
+    # 1. Determine API Key
+    api_key = None
+    
+    # Check if user provided a key
+    if creds and creds.credentials:
+        api_key = creds.credentials
+    
+    # Fallback to Server Key
+    if not api_key:
+        api_key = os.environ.get("OPENROUTER_API_KEY")
+
     if not api_key:
         raise HTTPException(status_code=401, detail="API Key missing")
 
