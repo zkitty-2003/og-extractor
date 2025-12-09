@@ -140,34 +140,52 @@ async def share_chat(request: ShareRequest):
 # ==============================
 
 async def _translate_logic(text: str, api_key: str) -> str:
-    payload = {
-        "model": "google/gemini-2.0-flash-exp:free",
-        "messages": [
-            {"role": "system", "content": "You are a strict translation engine for image prompts.\n\nYour job:\n- Input: Thai text describing an image.\n- Output: a SHORT English prompt that can be sent directly to an image generation model.\n- Output MUST be in English ONLY. No Thai, no explanations, no extra sentences.\n- Do NOT add quotes around the text.\n- Do NOT say things like \"Here is your prompt\" or \"The translation is\".\n- Just output the prompt text itself.\n\nStyle rules:\n- Keep it concise but descriptive enough for an image (5–20 words).\n- If the Thai input is only one word (e.g., \"กระต่าย\"), output 1–3 English words (e.g., \"rabbit\", \"cute white rabbit\").\n- You may add 1–2 visual adjectives if they make sense, but NEVER change the main subject.\n\nIf you break any of these rules, the system will not work.\n\nExamples:\n\nThai: กระต่าย\nEnglish: rabbit\n\nThai: กระต่ายน่ารัก\nEnglish: cute rabbit\n\nThai: กระต่ายน่ารักบนดวงจันทร์\nEnglish: cute rabbit sitting on the moon, night sky, stars\n\nThai: ทะเลช่วงพระอาทิตย์ตก\nEnglish: sunset over the sea, warm colors, calm waves"},
-            {"role": "user", "content": text}
-        ]
-    }
+    # List of models to try in order
+    models = [
+        "google/gemini-2.0-flash-exp:free",
+        "google/gemini-2.0-flash-thinking-exp:free",
+        "google/gemma-2-9b-it:free",
+        "meta-llama/llama-3.2-11b-vision-instruct:free"
+    ]
 
     async with httpx.AsyncClient(timeout=30) as client:
-        response = await client.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-                "HTTP-Referer": "https://og-extractor-zxkk.onrender.com",
-                "X-Title": "FastAPI Chat"
-            },
-            json=payload
-        )
-        
-        if response.status_code != 200:
-            raise HTTPException(status_code=response.status_code, detail="Translation failed")
+        for model in models:
+            try:
+                payload = {
+                    "model": model,
+                    "messages": [
+                        {"role": "system", "content": "You are a strict translation engine for image prompts.\n\nYour job:\n- Input: Thai text describing an image.\n- Output: a SHORT English prompt that can be sent directly to an image generation model.\n- Output MUST be in English ONLY. No Thai, no explanations, no extra sentences.\n- Do NOT add quotes around the text.\n- Do NOT say things like \"Here is your prompt\" or \"The translation is\".\n- Just output the prompt text itself.\n\nStyle rules:\n- Keep it concise but descriptive enough for an image (5–20 words).\n- If the Thai input is only one word (e.g., \"กระต่าย\"), output 1–3 English words (e.g., \"rabbit\", \"cute white rabbit\").\n- You may add 1–2 visual adjectives if they make sense, but NEVER change the main subject.\n\nIf you break any of these rules, the system will not work.\n\nExamples:\n\nThai: กระต่าย\nEnglish: rabbit\n\nThai: กระต่ายน่ารัก\nEnglish: cute rabbit\n\nThai: กระต่ายน่ารักบนดวงจันทร์\nEnglish: cute rabbit sitting on the moon, night sky, stars\n\nThai: ทะเลช่วงพระอาทิตย์ตก\nEnglish: sunset over the sea, warm colors, calm waves"},
+                        {"role": "user", "content": text}
+                    ]
+                }
 
-        data = response.json()
-        if "choices" in data and len(data["choices"]) > 0:
-            return data["choices"][0]["message"]["content"].strip()
-        else:
-            raise HTTPException(status_code=500, detail="No translation returned")
+                response = await client.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                        "HTTP-Referer": "https://og-extractor-zxkk.onrender.com",
+                        "X-Title": "FastAPI Chat"
+                    },
+                    json=payload
+                )
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    if "choices" in data and len(data["choices"]) > 0:
+                        return data["choices"][0]["message"]["content"].strip()
+                
+                # If we get here, the request failed (non-200) or empty choices
+                print(f"Model {model} failed with status {response.status_code}")
+                continue # Try next model
+
+            except Exception as e:
+                print(f"Model {model} error: {str(e)}")
+                continue # Try next model
+
+    # If all models fail, return original text to prevent 500 error
+    print("All translation models failed. Returning original text.")
+    return text
 
 class TranslationRequest(BaseModel):
     text: str
