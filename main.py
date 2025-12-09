@@ -212,7 +212,7 @@ async def translate_text(
     
     # Fallback to Server Key
     if not api_key:
-        api_key = os.environ.get("OPENROUTER_API_KEY", "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")
+        api_key = os.environ.get("OPENROUTER_API_KEY", "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")
 
     if not api_key:
         raise HTTPException(status_code=401, detail="API Key missing")
@@ -247,7 +247,7 @@ async def chat_with_ai(
     
     # Fallback to Server Key
     if not api_key:
-        api_key = os.environ.get("OPENROUTER_API_KEY", "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")
+        api_key = os.environ.get("OPENROUTER_API_KEY", "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")
     
     if not api_key:
         raise HTTPException(
