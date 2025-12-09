@@ -227,7 +227,7 @@ async def translate_text(
 
 class ChatRequest(BaseModel):
     message: str
-    model: Optional[str] = "google/gemma-3-27b-it:free"
+    model: Optional[str] = "google/gemini-2.0-flash-exp:free"
     history: Optional[List[Dict[str, str]]] = None
     image_config: Optional[Dict[str, Any]] = None
 
