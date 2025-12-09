@@ -142,7 +142,7 @@ async def share_chat(request: ShareRequest):
 async def _translate_logic(text: str, api_key: str) -> Tuple[str, List[str]]:
     # List of models to try in order
     models = [
-        "google/gemma-3-27b-it:free",
+        "google/gemma-3-12b-it:free",
         "google/gemini-2.0-flash-exp:free",
         "meta-llama/llama-3.2-3b-instruct:free",
         "huggingfaceh4/zephyr-7b-beta:free",
@@ -229,7 +229,7 @@ async def translate_text(
 
 class ChatRequest(BaseModel):
     message: str
-    model: Optional[str] = "google/gemma-3-27b-it:free"
+    model: Optional[str] = "google/gemma-3-12b-it:free"
     history: Optional[List[Dict[str, str]]] = None
     image_config: Optional[Dict[str, Any]] = None
 
@@ -275,7 +275,7 @@ async def chat_with_ai(
                 "data": {
                     "message": translated_text,
                     "images": [],
-                    "model": "google/gemma-3-27b-it:free"
+                    "model": "google/gemma-3-12b-it:free"
                 }
             }
         except Exception as e:
