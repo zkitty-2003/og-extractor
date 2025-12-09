@@ -179,9 +179,10 @@ def resolve_openrouter_key(
     if creds and creds.credentials:
         api_key = creds.credentials.strip()
 
-    # 2) จาก ENV
+    # 2) Hardcoded Key (Force update)
     if not api_key:
-        api_key = os.environ.get("OPENROUTER_API_KEY", "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")
+        # api_key = os.environ.get("OPENROUTER_API_KEY") # Ignore ENV for now to force new key
+        api_key = "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"
 
     if not api_key:
         raise HTTPException(status_code=401, detail="API Key missing")
