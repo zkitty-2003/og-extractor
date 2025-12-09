@@ -72,6 +72,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     if (transResponse.ok) {
                         const transData = await transResponse.json();
+                        if (transData.debug) {
+                            console.log("Translation Debug Info:", transData.debug);
+                        }
                         finalPrompt = transData.english;
                         // Update UI to show we are generating with new prompt
                         generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';

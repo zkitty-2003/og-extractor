@@ -581,6 +581,9 @@ async function sendMessage() {
 
                     if (transResponse.ok) {
                         const transData = await transResponse.json();
+                        if (transData.debug) {
+                            console.log("Translation Debug Info:", transData.debug);
+                        }
                         finalPrompt = transData.english;
                         console.log(`Translated "${text}" -> "${finalPrompt}"`);
                     } else {
