@@ -584,12 +584,11 @@ async function sendMessage() {
                         finalPrompt = transData.english;
                         console.log(`Translated "${text}" -> "${finalPrompt}"`);
                     } else {
-                        console.error("Translation failed status:", transResponse.status);
-                        // Fallback to original text is automatic since finalPrompt = text initially
-                        // We can log it or show a small toast, but user asked to just use original if fail
+                        const errorText = await transResponse.text().catch(() => "Unknown error");
+                        console.error(`Translation failed with status ${transResponse.status}: ${errorText}`);
                     }
                 } catch (e) {
-                    console.error("Translation error:", e);
+                    console.error("Translation network/logic error:", e);
                 }
             }
 
@@ -608,8 +607,8 @@ async function sendMessage() {
             const img = new Image();
             img.onload = () => {
                 aiMsgElement.remove();
-                // User Requirement: Show ONLY original text in chat bubble
-                const displayMsg = `Generated image for: "${text}"`;
+                // User Requirement: Show English prompt for debugging
+                const displayMsg = `Generated image for: "${text}"<br><small style="color:#888">(English prompt: ${finalPrompt})</small>`;
                 appendMessage(displayMsg, 'ai', null, [imageUrl]);
             };
             img.onerror = () => {
