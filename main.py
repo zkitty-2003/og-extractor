@@ -208,9 +208,6 @@ async def _translate_logic(text: str, api_key: str) -> Tuple[str, List[str]]:
     """
     models = [
         "google/gemma-3-27b-it:free",
-        "mistralai/mistral-7b-instruct:free",
-        "openchat/openchat-7b:free",
-        "meta-llama/llama-3.2-3b-instruct:free",
     ]
 
     errors: List[str] = []
@@ -317,7 +314,7 @@ async def translate_text(
 
 class ChatRequest(BaseModel):
     message: str
-    model: Optional[str] = "meta-llama/llama-3.2-3b-instruct:free"
+    model: Optional[str] = "google/gemma-3-27b-it:free"
     history: Optional[List[Dict[str, Any]]] = None
     image_config: Optional[Dict[str, Any]] = None
 
@@ -349,7 +346,7 @@ async def chat_with_ai(
                 "data": {
                     "message": translated_text,
                     "images": [],
-                    "model": "meta-llama/llama-3.2-3b-instruct:free",
+                    "model": "google/gemma-3-27b-it:free",
                 },
             }
         except Exception as e:
@@ -576,7 +573,7 @@ async def summarize_simple(
     )
 
     payload = {
-        "model": "meta-llama/llama-3.2-3b-instruct:free",
+        "model": "google/gemma-3-27b-it:free",
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": conversation_text},

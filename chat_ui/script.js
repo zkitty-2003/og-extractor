@@ -634,7 +634,7 @@ async function sendMessage() {
                 body: JSON.stringify({
                     message: text,
                     history: chatHistory.map(msg => ({ role: msg.role, content: msg.content })),
-                    model: "meta-llama/llama-3.2-3b-instruct:free"
+                    model: "google/gemma-3-27b-it:free"
                 })
             });
 

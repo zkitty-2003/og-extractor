@@ -30,7 +30,7 @@ security = HTTPBearer()
 
 class ChatRequest(BaseModel):
     message: str
-    model: Optional[str] = "meta-llama/llama-3.2-3b-instruct:free" # Default model, can be changed
+    model: Optional[str] = "google/gemma-3-27b-it:free" # Default model, can be changed
     history: Optional[List[Dict[str, str]]] = None # Optional conversation history
 
 @app.post("/chat")
