@@ -167,19 +167,26 @@ async def get_shared_chat(share_id: str):
 def resolve_openrouter_key(
     creds: Optional[HTTPAuthorizationCredentials],
 ) -> str:
-    api_key = None
+    """
+    เลือก API key จาก:
+    1) Authorization header จาก client (ถ้ามี)
+    2) ENV: OPENROUTER_API_KEY
+    ถ้าไม่เจอ -> 401
+    """
+    api_key: Optional[str] = None
 
-    # 1) เอา API key จาก client ถ้ามี
+    # 1) จาก client (Bearer)
     if creds and creds.credentials:
         api_key = creds.credentials.strip()
 
-    # 2) ใช้ ENV ถ้าไม่มี key จาก client
+    # 2) จาก Environment Variable บน server
     if not api_key:
         api_key = os.environ.get("OPENROUTER_API_KEY")
 
     if not api_key:
         raise HTTPException(status_code=401, detail="API Key missing")
 
+    # Log ไว้ดู แต่ไม่โชว์ทั้งดอก
     print("Using OpenRouter key prefix:", api_key[:10] + "****")
     return api_key
 
