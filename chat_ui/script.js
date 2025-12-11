@@ -771,7 +771,7 @@ async function shareCurrentChat() {
         const shareUrl = `${window.location.origin}${window.location.pathname}?share=${data.id}`;
 
         await navigator.clipboard.writeText(shareUrl);
-        alert("คัดลอกลิงก์แชร์เรียบร้อยแล้ว! ส่งให้เพื่อนได้เลยครับ\n\n" + shareUrl);
+        alert("คัดลอกลิงก์แชร์เรียบร้อยแล้ว! ส่งให้เพื่อนได้เลย\n\n" + shareUrl);
     } catch (error) {
         console.error("Error sharing chat:", error);
         alert("เกิดข้อผิดพลาดในการแชร์แชท");
@@ -815,7 +815,7 @@ async function loadSharedChat(shareId) {
     }
 }
 
-// 🆕 ฟังก์ชันสรุปแชท (ทดสอบปุ่มเฉย ๆ ก่อน)
+// ฟังก์ชันสรุปแชทเวอร์ชันเรียก backend
 async function summarizeCurrentChat() {
     console.log("Summary button clicked. currentChatId =", currentChatId);
 
@@ -824,9 +824,47 @@ async function summarizeCurrentChat() {
         return;
     }
 
-    alert("สรุปแชท (ทดสอบปุ่ม):\nChat ID: " + (currentChatId || "ยังไม่มี ID"));
-    // ต่อไปค่อยเปลี่ยนส่วนนี้ให้เรียก API /summary จาก backend
+    // ล็อก UI ไว้เหมือนตอนส่งข้อความปกติ
+    setBusyState(true);
+
+    try {
+        const headers = { 'Content-Type': 'application/json' };
+        if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+
+        // เรียก backend /summary
+        const res = await fetch('/summary', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+                chat_id: currentChatId,
+                messages: chatHistory.map(m => ({
+                    role: m.role,          // "user" | "assistant"
+                    content: m.content
+                }))
+            })
+        });
+
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.detail || 'Summary server error');
+        }
+
+        const data = await res.json();
+
+        // สมมติ backend ส่ง { summary: "...." }
+        const summaryText = data.summary || 'ไม่ได้รับข้อความสรุปจากเซิร์ฟเวอร์';
+
+        // ให้ AI พิมพ์สรุปลงในแชทเลย
+        appendMessage("สรุปหัวข้อของแชทนี้:\n" + summaryText, 'ai');
+
+    } catch (err) {
+        console.error('Summary error:', err);
+        alert('สรุปไม่สำเร็จ: ' + err.message);
+    } finally {
+        setBusyState(false);
+    }
 }
+
 
 // Theme Management
 function loadThemeForUser(userId) {

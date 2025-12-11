@@ -35,7 +35,7 @@ app.mount("/static", StaticFiles(directory="chat_ui"), name="static")
 async def root():
     return {
         "message": "OG Extractor & Chat API is running",
-        "endpoints": ["/extract", "/chat", "/docs", "/ui", "/image"]
+        "endpoints": ["/extract", "/chat", "/docs", "/ui", "/image", "/summary", "/chat/summary"]
     }
 
 
@@ -196,7 +196,6 @@ def resolve_openrouter_key(
     return api_key
 
 
-
 # ==============================
 # 4) Translation API
 # ==============================
@@ -207,18 +206,15 @@ async def _translate_logic(text: str, api_key: str) -> Tuple[str, List[str]]:
     โดยลองหลายโมเดลต่อกัน ถ้าตัวแรก ๆ โดน rate-limit ก็จะลองตัวถัดไป
     ถ้าทุกตัวพังหมด จะคืนข้อความเดิม + debug errors
     """
-    # เรียงลำดับโมเดลตัวฟรีที่ค่อนข้างเสถียรไว้ก่อน
     models = [
         "google/gemma-3-27b-it:free",
         "mistralai/mistral-7b-instruct:free",
         "openchat/openchat-7b:free",
-        # ค่อยลอง Llama ทีหลัง เพราะช่วงนี้ชอบโดน rate-limit
         "meta-llama/llama-3.2-3b-instruct:free",
     ]
 
     errors: List[str] = []
 
-    # ถ้าข้อความว่างเปล่า ไม่ต้องไปยิง API
     if not text.strip():
         return "", errors
 
@@ -274,11 +270,9 @@ async def _translate_logic(text: str, api_key: str) -> Tuple[str, List[str]]:
                     data = response.json()
                     if "choices" in data and data["choices"]:
                         content = data["choices"][0]["message"]["content"].strip()
-                        # กันเคสที่โมเดลตอบว่างเปล่า
                         if content:
                             return content, errors
 
-                # ถ้า status != 200 เก็บเป็น debug ไว้
                 error_msg = (
                     f"Model {model} failed: {response.status_code} - "
                     f"{response.text[:200]}"
@@ -293,7 +287,6 @@ async def _translate_logic(text: str, api_key: str) -> Tuple[str, List[str]]:
                 errors.append(error_msg)
                 continue
 
-    # ถ้าทุกโมเดลพังหมด → ส่งข้อความเดิมกลับไป พร้อม debug
     print(f"All translation models failed. Returning original text. Errors: {errors}")
     return text, errors
 
@@ -317,10 +310,6 @@ async def translate_text(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Translation error: {str(e)}")
 
-
-# ==============================
-# 5) Chat API
-# ==============================
 
 # ==============================
 # 5) Chat API
@@ -373,7 +362,6 @@ async def chat_with_ai(
                 },
             }
 
-    # ===== เตรียม messages =====
     messages = request.history or []
 
     system_prompt = {
@@ -393,14 +381,12 @@ async def chat_with_ai(
 
     messages.append({"role": "user", "content": request.message})
 
-    # ===== สร้าง payload แบบไม่บังคับ image =====
     payload: Dict[str, Any] = {
         "model": request.model,
         "messages": messages,
         "stream": False,
     }
 
-    # ถ้ามี image_config ค่อยใส่ field สำหรับ multimodal
     if request.image_config:
         payload["modalities"] = ["image", "text"]
         payload["image_config"] = request.image_config
@@ -418,9 +404,7 @@ async def chat_with_ai(
                 json=payload,
             )
 
-        # ===== เช็ค error จาก OpenRouter / provider =====
         if response.status_code != 200:
-            # debug log ไว้ดูใน console ของ server
             print("OpenRouter error status:", response.status_code)
             print("OpenRouter error body:", response.text)
 
@@ -438,7 +422,6 @@ async def chat_with_ai(
                 detail=f"OpenRouter Error: {msg}",
             )
 
-        # ===== แปลงผลลัพธ์ปกติ =====
         data = response.json()
 
         ai_message = ""
@@ -448,7 +431,6 @@ async def chat_with_ai(
             message_obj = data["choices"][0]["message"]
             ai_message = message_obj.get("content", "")
 
-            # รองรับข้อความที่มี images (ถ้ามี)
             if "images" in message_obj:
                 for img in message_obj["images"]:
                     if "image_url" in img and "url" in img["image_url"]:
@@ -464,18 +446,15 @@ async def chat_with_ai(
         }
 
     except HTTPException:
-        # ถ้าเรา raise HTTPException ข้างบนแล้ว ก็โยนต่อเฉย ๆ
         raise
     except httpx.RequestError as e:
-        # ปัญหา network ระหว่างเซิร์ฟเวอร์เรากับ OpenRouter
         raise HTTPException(status_code=500, detail=f"Connection error: {str(e)}")
     except Exception as e:
-        # ปัญหาอื่น ๆ ในโค้ดฝั่งเราเอง
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
 # ==============================
-# 6) Analyze Chat API
+# 6) Analyze Chat API (เดิม)
 # ==============================
 
 class AnalyzeRequest(BaseModel):
@@ -490,15 +469,12 @@ async def summarize_chat_session(
 ):
     api_key = resolve_openrouter_key(creds)
 
-    # Use a smart model for analysis
     model = "google/gemini-2.0-flash-exp:free"
 
-    # Convert messages to a string representation for the prompt
     conversation_text = ""
     for msg in request.messages:
         role = msg.get("role", "unknown")
         content = msg.get("content", "")
-        # Timestamp might be in the message or not, handle safely
         timestamp = msg.get("timestamp", "N/A")
         conversation_text += f"[{timestamp}] {role}: {content}\n"
 
@@ -514,62 +490,11 @@ async def summarize_chat_session(
         "   - What is the main purpose or intent of the user?\n"
         "   - What are the key actions, decisions, or conclusions?\n\n"
         "3) Create a short Thai title for this chat (5–12 words).\n"
-        "4) Generate 3–8 short \"topics\" (tags/keywords) in THAI, each 1–4 words, e.g.\n"
-        "   [\"สภาพอากาศ\", \"สรุปงาน\", \"เตรียมสอบ OS\"].\n"
-        "5) Prepare a JSON object that can be saved to OpenSearch for this chat.\n\n"
+        "4) Generate 3–8 short \"topics\" (tags/keywords) in THAI, each 1–4 words.\n"
+        "5) Prepare a JSON object that can be saved to OpenSearch for this chat.\n"
         "IMPORTANT RULES:\n"
         "- All human-readable text (title, summary, topics) MUST be in Thai.\n"
-        "- Be concise but clear.\n"
-        "- Do NOT include any personal data that is not already in the chat.\n"
-        "- Output MUST be valid JSON only. No explanation text outside JSON. No markdown.\n\n"
-        "OUTPUT FORMAT (very important):\n\n"
-        "{\n"
-        "  \"chat_id\": \"<same as input chat_id>\",\n"
-        "  \"title\": \"<short Thai title of this chat>\",\n"
-        "  \"summary\": \"<Thai summary (3–6 bullet-style sentences, but as one string, you may use \\n for new lines)>\",\n"
-        "  \"topics\": [\"...\", \"...\", \"...\"],\n"
-        "  \"opensearch_doc\": {\n"
-        "    \"index\": \"chat_summaries\",\n"
-        "    \"id\": \"<chat_id>\",\n"
-        "    \"body\": {\n"
-        "      \"chat_id\": \"<chat_id>\",\n"
-        "      \"title\": \"<same as above>\",\n"
-        "      \"summary\": \"<same as above>\",\n"
-        "      \"topics\": [\"...\", \"...\", \"...\"],\n"
-        "      \"message_count\": <number of messages in this chat>,\n"
-        "      \"first_message_at\": \"<ISO8601 timestamp of first message>\",\n"
-        "      \"last_message_at\": \"<ISO8601 timestamp of last message>\"\n"
-        "    }\n"
-        "  }\n"
-        "}\n\n"
-        "If some timestamps are missing, you may leave first_message_at and last_message_at as null.\n"
-        "Always make sure the JSON is syntactically valid.\n\n"
-        "ONE-SHOT EXAMPLE:\n"
-        "Input Chat ID: chat_2025_12_11_001\n"
-        "Input Messages:\n"
-        "[2025-12-11T04:20:00Z] user: สภาพอากาศพรุ่งนี้จะเป็นยังไง\n"
-        "[2025-12-11T04:20:05Z] assistant: สวัสดีค่ะ ... ถ้าบอกตำแหน่งได้จะเช็กให้ค่ะ\n"
-        "[2025-12-11T04:21:00Z] user: ปทุมธานี\n\n"
-        "Output JSON:\n"
-        "{\n"
-        "  \"chat_id\": \"chat_2025_12_11_001\",\n"
-        "  \"title\": \"ถามสภาพอากาศพรุ่งนี้ที่ปทุมธานี\",\n"
-        "  \"summary\": \"ผู้ใช้ถามเกี่ยวกับสภาพอากาศในวันพรุ่งนี้\\nระบุสถานที่เป็นจังหวัดปทุมธานี\\nผู้ช่วยอธิบายแนวโน้มอากาศว่าอากาศร้อนถึงร้อนจัดและมีโอกาสฝนบางส่วน\\nมีการแนะนำให้ระวังแดดจัดและดื่มน้ำมาก ๆ\",\n"
-        "  \"topics\": [\"สภาพอากาศ\", \"พยากรณ์อากาศ\", \"ปทุมธานี\", \"อากาศร้อน\"],\n"
-        "  \"opensearch_doc\": {\n"
-        "    \"index\": \"chat_summaries\",\n"
-        "    \"id\": \"chat_2025_12_11_001\",\n"
-        "    \"body\": {\n"
-        "      \"chat_id\": \"chat_2025_12_11_001\",\n"
-        "      \"title\": \"ถามสภาพอากาศพรุ่งนี้ที่ปทุมธานี\",\n"
-        "      \"summary\": \"ผู้ใช้ถามเกี่ยวกับสภาพอากาศในวันพรุ่งนี้\\nระบุสถานที่เป็นจังหวัดปทุมธานี\\nผู้ช่วยอธิบายแนวโน้มอากาศว่าอากาศร้อนถึงร้อนจัดและมีโอกาสฝนบางส่วน\\nมีการแนะนำให้ระวังแดดจัดและดื่มน้ำมาก ๆ\",\n"
-        "      \"topics\": [\"สภาพอากาศ\", \"พยากรณ์อากาศ\", \"ปทุมธานี\", \"อากาศร้อน\"],\n"
-        "      \"message_count\": 3,\n"
-        "      \"first_message_at\": \"2025-12-11T04:20:00Z\",\n"
-        "      \"last_message_at\": \"2025-12-11T04:21:00Z\"\n"
-        "    }\n"
-        "  }\n"
-        "}"
+        "- Output MUST be valid JSON only.\n"
     )
 
     user_prompt = f"Chat ID: {request.chat_id}\n\nMessages:\n{conversation_text}"
@@ -599,14 +524,13 @@ async def summarize_chat_session(
                 raise HTTPException(status_code=response.status_code, detail="Analysis failed")
 
             data = response.json()
-            if "choices" in data and data["choices"]:
+            if "choices" in data and data["choices"]]:
                 content = data["choices"][0]["message"]["content"]
-                # Parse JSON string to object to ensure it is valid JSON before returning
                 import json
                 try:
                     return {"success": True, "data": json.loads(content)}
                 except json.JSONDecodeError:
-                     return {"success": True, "data": content} # Return raw string if parse fails, though model should return JSON
+                    return {"success": True, "data": content}
 
             raise HTTPException(status_code=500, detail="No content returned")
 
@@ -614,6 +538,78 @@ async def summarize_chat_session(
         print(f"Analysis error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# ==============================
+# 7) NEW: Simple Summary API สำหรับปุ่มสรุปใน UI
+# ==============================
+
+class SimpleSummaryRequest(BaseModel):
+    chat_id: Optional[str] = None
+    messages: List[Dict[str, Any]]
+
+
+@app.post("/summary")
+async def summarize_simple(
+    request: SimpleSummaryRequest,
+    creds: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """
+    ใช้สำหรับปุ่มสรุปในหน้าเว็บ:
+    รับ { chat_id, messages } แล้วตอบกลับเป็น { summary: "..." }
+    """
+    api_key = resolve_openrouter_key(creds)
+
+    # แปลง messages เป็น text ย่อย ๆ
+    conversation_text = ""
+    for msg in request.messages:
+        role = msg.get("role", "user")
+        content = msg.get("content", "")
+        role_th = "ผู้ใช้" if role == "user" else "ผู้ช่วย"
+        conversation_text += f"{role_th}: {content}\n"
+
+    system_prompt = (
+        "คุณเป็นระบบสรุปบทสนทนาภาษาไทยแบบสั้น ๆ.\n"
+        "- งานของคุณคือ อ่านแชททั้งหมด แล้วสรุปว่าในแชทนี้เขาคุยเรื่องอะไรเป็นหลัก\n"
+        "- ให้ตอบเป็นภาษาไทย 2–4 ประโยค สั้น กระชับ แต่ชัดเจน\n"
+        "- ห้ามใส่คำอธิบายส่วนเกิน เช่น \"สรุปแล้ว\", \"จากบทสนทนา\" ฯลฯ\n"
+        "- ให้ตอบเฉพาะข้อความสรุปอย่างเดียวเท่านั้น"
+    )
+
+    payload = {
+        "model": "meta-llama/llama-3.2-3b-instruct:free",
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": conversation_text},
+        ],
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=60) as client:
+            r = await client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "https://og-extractor-zxkk.onrender.com",
+                    "X-Title": "FastAPI Chat Simple Summary",
+                },
+                json=payload,
+            )
+
+        if r.status_code != 200:
+            print("Simple summary error:", r.status_code, r.text)
+            raise HTTPException(status_code=r.status_code, detail="Summary failed")
+
+        data = r.json()
+        if "choices" in data and data["choices"]:
+            summary_text = data["choices"][0]["message"]["content"].strip()
+            return {"summary": summary_text}
+
+        raise HTTPException(status_code=500, detail="No summary returned")
+
+    except Exception as e:
+        print("Simple summary exception:", str(e))
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ==============================
