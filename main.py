@@ -198,7 +198,7 @@ def resolve_openrouter_key(
 
 async def _translate_logic(text: str, api_key: str) -> Tuple[str, List[str]]:
     models = [
-        "google/gemini-2.0-flash-exp:free",
+        "meta-llama/llama-3.2-3b-instruct:free",
     ]
 
     errors: List[str] = []
@@ -304,7 +304,7 @@ async def translate_text(
 
 class ChatRequest(BaseModel):
     message: str
-    model: Optional[str] = "google/gemini-2.0-flash-exp:free"
+    model: Optional[str] = "meta-llama/llama-3.2-3b-instruct:free"
     history: Optional[List[Dict[str, Any]]] = None
     image_config: Optional[Dict[str, Any]] = None
 
@@ -336,7 +336,7 @@ async def chat_with_ai(
                 "data": {
                     "message": translated_text,
                     "images": [],
-                    "model": "google/gemini-2.0-flash-exp:free",
+                    "model": "meta-llama/llama-3.2-3b-instruct:free",
                 },
             }
         except Exception as e:
