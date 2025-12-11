@@ -14,6 +14,9 @@ import json
 
 # OpenSearch
 from opensearchpy import AsyncOpenSearch
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # ==============================
 # FastAPI setup
