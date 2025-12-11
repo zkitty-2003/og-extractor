@@ -611,8 +611,9 @@ async function sendMessage() {
             img.onload = () => {
                 aiMsgElement.remove();
                 // User Requirement: Show English prompt for debugging
-                const displayMsg = `Generated image for: "${text}"<br><small style="color:#888">(English prompt: ${finalPrompt})</small>`;
+                const displayMsg = `Generated image for: "${text}"`;
                 appendMessage(displayMsg, 'ai', null, [imageUrl]);
+
             };
             img.onerror = () => {
                 throw new Error("Failed to generate image.");
