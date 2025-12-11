@@ -303,6 +303,10 @@ async def translate_text(
 # 5) Chat API
 # ==============================
 
+# ==============================
+# 5) Chat API
+# ==============================
+
 class ChatRequest(BaseModel):
     message: str
     model: Optional[str] = "google/gemma-3-12b-it:free"
@@ -350,6 +354,7 @@ async def chat_with_ai(
                 },
             }
 
+    # ===== เตรียม messages =====
     messages = request.history or []
 
     system_prompt = {
@@ -369,13 +374,17 @@ async def chat_with_ai(
 
     messages.append({"role": "user", "content": request.message})
 
+    # ===== สร้าง payload แบบไม่บังคับ image =====
     payload: Dict[str, Any] = {
         "model": request.model,
         "messages": messages,
-        "modalities": ["image", "text"],
-        "image_config": request.image_config or {"aspect_ratio": "16:9"},
         "stream": False,
     }
+
+    # ถ้ามี image_config ค่อยใส่ field สำหรับ multimodal
+    if request.image_config:
+        payload["modalities"] = ["image", "text"]
+        payload["image_config"] = request.image_config
 
     try:
         async with httpx.AsyncClient(timeout=60) as client:
@@ -390,7 +399,12 @@ async def chat_with_ai(
                 json=payload,
             )
 
+        # ===== เช็ค error จาก OpenRouter / provider =====
         if response.status_code != 200:
+            # debug log ไว้ดูใน console ของ server
+            print("OpenRouter error status:", response.status_code)
+            print("OpenRouter error body:", response.text)
+
             try:
                 err_json = response.json()
                 if "error" in err_json and "message" in err_json["error"]:
@@ -405,6 +419,7 @@ async def chat_with_ai(
                 detail=f"OpenRouter Error: {msg}",
             )
 
+        # ===== แปลงผลลัพธ์ปกติ =====
         data = response.json()
 
         ai_message = ""
@@ -414,6 +429,7 @@ async def chat_with_ai(
             message_obj = data["choices"][0]["message"]
             ai_message = message_obj.get("content", "")
 
+            # รองรับข้อความที่มี images (ถ้ามี)
             if "images" in message_obj:
                 for img in message_obj["images"]:
                     if "image_url" in img and "url" in img["image_url"]:
@@ -429,11 +445,15 @@ async def chat_with_ai(
         }
 
     except HTTPException:
+        # ถ้าเรา raise HTTPException ข้างบนแล้ว ก็โยนต่อเฉย ๆ
         raise
     except httpx.RequestError as e:
+        # ปัญหา network ระหว่างเซิร์ฟเวอร์เรากับ OpenRouter
         raise HTTPException(status_code=500, detail=f"Connection error: {str(e)}")
     except Exception as e:
+        # ปัญหาอื่น ๆ ในโค้ดฝั่งเราเอง
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
 
 
 # ==============================
