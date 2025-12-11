@@ -524,7 +524,7 @@ async def summarize_chat_session(
                 raise HTTPException(status_code=response.status_code, detail="Analysis failed")
 
             data = response.json()
-            if "choices" in data and data["choices"]]:
+            if "choices" in data and data["choices"]:
                 content = data["choices"][0]["message"]["content"]
                 import json
                 try:
