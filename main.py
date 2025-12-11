@@ -204,7 +204,7 @@ async def _translate_logic(text: str, api_key: str) -> Tuple[str, List[str]]:
     """
     # เรียงลำดับโมเดลตัวฟรีที่ค่อนข้างเสถียรไว้ก่อน
     models = [
-        "huggingfaceh4/zephyr-7b-beta:free",
+        "google/gemma-3-27b-it:free",
         "mistralai/mistral-7b-instruct:free",
         "openchat/openchat-7b:free",
         # ค่อยลอง Llama ทีหลัง เพราะช่วงนี้ชอบโดน rate-limit
