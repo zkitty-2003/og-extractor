@@ -10,6 +10,10 @@ from bs4 import BeautifulSoup
 import httpx
 import os
 import uuid
+import json
+
+# OpenSearch
+from opensearchpy import AsyncOpenSearch
 
 # ==============================
 # FastAPI setup
@@ -17,6 +21,9 @@ import uuid
 
 app = FastAPI()
 security = HTTPBearer(auto_error=False)
+
+# Global OpenSearch Client
+opensearch_client: Optional[AsyncOpenSearch] = None
 
 # CORS
 app.add_middleware(
@@ -29,6 +36,72 @@ app.add_middleware(
 
 # Static files
 app.mount("/static", StaticFiles(directory="chat_ui"), name="static")
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize OpenSearch client on startup."""
+    global opensearch_client
+    opensearch_url = os.environ.get("OPENSEARCH_URL")
+    username = os.environ.get("OPENSEARCH_USERNAME")
+    password = os.environ.get("OPENSEARCH_PASSWORD")
+
+    if opensearch_url and username and password:
+        try:
+            print(f"Initializing OpenSearch client connecting to {opensearch_url}...")
+            opensearch_client = AsyncOpenSearch(
+                hosts=[opensearch_url],
+                http_auth=(username, password),
+                use_ssl=True,
+                verify_certs=True,
+                ssl_show_warn=False,
+            )
+            # Optional: Check connection
+            # info = await opensearch_client.info()
+            # print(f"Connected to OpenSearch: {info['version']['number']}")
+            print("OpenSearch client initialized successfully.")
+        except Exception as e:
+            print(f"Failed to initialize OpenSearch client: {e}")
+    else:
+        print("OpenSearch credentials not found in env. Indexing will be disabled.")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Close OpenSearch client on shutdown."""
+    if opensearch_client:
+        await opensearch_client.close()
+
+
+async def index_chat_summary(doc: dict) -> None:
+    """
+    Helper function to index (upsert) chat summary to OpenSearch.
+    Does not raise exception on failure, just logs error.
+    """
+    if not opensearch_client:
+        print("Skipping OpenSearch indexing: Client not initialized.")
+        return
+
+    try:
+        index_name = doc.get("index", "chat_summaries")
+        doc_id = doc.get("id")
+        body = doc.get("body")
+
+        if not body:
+            print("Skipping OpenSearch indexing: 'body' is missing in opensearch_doc")
+            return
+
+        # Perform Indexing
+        response = await opensearch_client.index(
+            index=index_name,
+            id=doc_id,  # Can be None, OS will generate ID
+            body=body,
+            refresh=True  # Make it searchable immediately
+        )
+        print(f"Indexed chat summary to OpenSearch. ID: {response.get('_id')}, Result: {response.get('result')}")
+
+    except Exception as e:
+        print(f"Error indexing chat summary to OpenSearch: {str(e)}")
 
 
 @app.get("/")
@@ -452,7 +525,7 @@ async def chat_with_ai(
 
 
 # ==============================
-# 6) Analyze Chat API (เดิม)
+# 6) Analyze Chat API (Updated with OpenSearch)
 # ==============================
 
 class AnalyzeRequest(BaseModel):
@@ -524,10 +597,20 @@ async def summarize_chat_session(
             data = response.json()
             if "choices" in data and data["choices"]:
                 content = data["choices"][0]["message"]["content"]
-                import json
+                
+                # Parse JSON
                 try:
-                    return {"success": True, "data": json.loads(content)}
+                    parsed_data = json.loads(content)
+                    
+                    # 🟢 INDEX TO OPENSEARCH
+                    if "opensearch_doc" in parsed_data:
+                        print(f"Indexing chat {request.chat_id} to OpenSearch...")
+                        await index_chat_summary(parsed_data["opensearch_doc"])
+                    
+                    return {"success": True, "data": parsed_data}
+                
                 except json.JSONDecodeError:
+                    print("JSON Decode Error in Summary", content)
                     return {"success": True, "data": content}
 
             raise HTTPException(status_code=500, detail="No content returned")
@@ -567,6 +650,7 @@ async def summarize_simple(
 
     system_prompt = (
         "คุณเป็นระบบสรุปบทสนทนาภาษาไทยแบบสั้น ๆ.\n"
+        "คุณมีความจำดีมาก สามารถจำรายละเอียดของบทสนทนาได้ทั้งหมด\n"
         "- งานของคุณคือ อ่านแชททั้งหมด แล้วสรุปว่าในแชทนี้เขาคุยเรื่องอะไรเป็นหลัก\n"
         "- ให้ตอบเป็นภาษาไทย 2–4 ประโยค สั้น กระชับ แต่ชัดเจน\n"
         "- ห้ามใส่คำอธิบายส่วนเกิน เช่น \"สรุปแล้ว\", \"จากบทสนทนา\" ฯลฯ\n"
