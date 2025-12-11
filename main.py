@@ -197,11 +197,25 @@ def resolve_openrouter_key(
 # ==============================
 
 async def _translate_logic(text: str, api_key: str) -> Tuple[str, List[str]]:
+    """
+    พยายามแปลข้อความ Thai -> English สำหรับ image prompt
+    โดยลองหลายโมเดลต่อกัน ถ้าตัวแรก ๆ โดน rate-limit ก็จะลองตัวถัดไป
+    ถ้าทุกตัวพังหมด จะคืนข้อความเดิม + debug errors
+    """
+    # เรียงลำดับโมเดลตัวฟรีที่ค่อนข้างเสถียรไว้ก่อน
     models = [
+        "huggingfaceh4/zephyr-7b-beta:free",
+        "mistralai/mistral-7b-instruct:free",
+        "openchat/openchat-7b:free",
+        # ค่อยลอง Llama ทีหลัง เพราะช่วงนี้ชอบโดน rate-limit
         "meta-llama/llama-3.2-3b-instruct:free",
     ]
 
     errors: List[str] = []
+
+    # ถ้าข้อความว่างเปล่า ไม่ต้องไปยิง API
+    if not text.strip():
+        return "", errors
 
     async with httpx.AsyncClient(timeout=60) as client:
         for model in models:
@@ -254,12 +268,16 @@ async def _translate_logic(text: str, api_key: str) -> Tuple[str, List[str]]:
                 if response.status_code == 200:
                     data = response.json()
                     if "choices" in data and data["choices"]:
-                        return (
-                            data["choices"][0]["message"]["content"].strip(),
-                            errors,
-                        )
+                        content = data["choices"][0]["message"]["content"].strip()
+                        # กันเคสที่โมเดลตอบว่างเปล่า
+                        if content:
+                            return content, errors
 
-                error_msg = f"Model {model} failed: {response.status_code} - {response.text[:200]}"
+                # ถ้า status != 200 เก็บเป็น debug ไว้
+                error_msg = (
+                    f"Model {model} failed: {response.status_code} - "
+                    f"{response.text[:200]}"
+                )
                 print(error_msg)
                 errors.append(error_msg)
                 continue
@@ -270,6 +288,7 @@ async def _translate_logic(text: str, api_key: str) -> Tuple[str, List[str]]:
                 errors.append(error_msg)
                 continue
 
+    # ถ้าทุกโมเดลพังหมด → ส่งข้อความเดิมกลับไป พร้อม debug
     print(f"All translation models failed. Returning original text. Errors: {errors}")
     return text, errors
 
