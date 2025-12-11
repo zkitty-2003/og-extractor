@@ -1040,3 +1040,44 @@ textarea {
 #create-image-trigger i {
     color: var(--accent-color);
 }
+
+/* Summary Button Redesign */
+.summary-btn-primary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background-color: #7a4ecb;
+    color: white;
+    border: none;
+    cursor: pointer;
+    padding: 8px 16px;
+    border-radius: 999px;
+    /* Pill shape */
+    font-size: 0.95rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    white-space: nowrap;
+}
+
+.summary-btn-primary:hover {
+    background-color: #693eb8;
+    /* Darker purple */
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.summary-btn-primary:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.summary-btn-primary i {
+    font-size: 1rem;
+}
+
+/* Ensure spinner centers correctly when loading */
+.summary-btn-primary .fa-spinner {
+    font-size: 1.1rem;
+    margin: 0 auto;
+}
