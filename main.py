@@ -167,29 +167,22 @@ async def get_shared_chat(share_id: str):
 def resolve_openrouter_key(
     creds: Optional[HTTPAuthorizationCredentials],
 ) -> str:
-    """
-    เลือก API key จาก:
-    1) Authorization: Bearer <key> จาก client (ถ้ามี)
-    2) ENV: OPENROUTER_API_KEY
-    ถ้าไม่เจอ -> 401
-    """
-    api_key: Optional[str] = None
+    api_key = None
 
-    # 1) จาก client (Bearer)
+    # 1) เอา API key จาก client ถ้ามี
     if creds and creds.credentials:
         api_key = creds.credentials.strip()
 
-    # 2) Hardcoded Key (Force update)
+    # 2) ใช้ ENV ถ้าไม่มี key จาก client
     if not api_key:
-        # api_key = os.environ.get("OPENROUTER_API_KEY") # Ignore ENV for now to force new key
-        api_key = "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"
+        api_key = os.environ.get("OPENROUTER_API_KEY")
 
     if not api_key:
         raise HTTPException(status_code=401, detail="API Key missing")
 
-    # Debug prefix (อย่าล็อกทั้งดอก)
     print("Using OpenRouter key prefix:", api_key[:10] + "****")
     return api_key
+
 
 
 # ==============================
