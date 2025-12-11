@@ -71,8 +71,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-
-
     if (mobileMenuBtn) {
         mobileMenuBtn.addEventListener('click', () => {
             sidebar.classList.toggle('active');
@@ -110,6 +108,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const shareBtn = document.getElementById('share-btn');
     if (shareBtn) {
         shareBtn.addEventListener('click', shareCurrentChat);
+    }
+
+    // 🆕 Summary Button Handler (ปุ่มสรุปข้างปุ่มแชร์)
+    const summaryBtn = document.getElementById('summary-btn');
+    if (summaryBtn) {
+        summaryBtn.addEventListener('click', summarizeCurrentChat);
+    } else {
+        console.log("summary-btn not found");
     }
 
     // Check for Shared Chat in URL
@@ -505,7 +511,6 @@ let isImageMode = false;
 let selectedStyle = "";
 
 // Initialize UI Event Listeners
-// Initialize UI Event Listeners
 document.addEventListener('DOMContentLoaded', () => {
     const imageModeBadge = document.getElementById('image-mode-badge');
     const inputWrapper = document.getElementById('input-wrapper');
@@ -572,7 +577,6 @@ async function sendMessage() {
                 try {
                     const headers = { 'Content-Type': 'application/json' };
                     if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
-
                     const transResponse = await fetch('/translate', {
                         method: 'POST',
                         headers: headers,
@@ -613,7 +617,6 @@ async function sendMessage() {
                 // User Requirement: Show English prompt for debugging
                 const displayMsg = `Generated image for: "${text}"`;
                 appendMessage(displayMsg, 'ai', null, [imageUrl]);
-
             };
             img.onerror = () => {
                 throw new Error("Failed to generate image.");
@@ -660,8 +663,6 @@ async function sendMessage() {
         setBusyState(false);
     }
 }
-
-
 
 function appendMessage(text, sender, id = null, images = []) {
     // Render UI
@@ -814,7 +815,19 @@ async function loadSharedChat(shareId) {
     }
 }
 
-// Theme Management
+// 🆕 ฟังก์ชันสรุปแชท (ทดสอบปุ่มเฉย ๆ ก่อน)
+async function summarizeCurrentChat() {
+    console.log("Summary button clicked. currentChatId =", currentChatId);
+
+    if (chatHistory.length === 0) {
+        alert("ยังไม่มีข้อความให้สรุปค่ะ");
+        return;
+    }
+
+    alert("สรุปแชท (ทดสอบปุ่ม):\nChat ID: " + (currentChatId || "ยังไม่มี ID"));
+    // ต่อไปค่อยเปลี่ยนส่วนนี้ให้เรียก API /summary จาก backend
+}
+
 // Theme Management
 function loadThemeForUser(userId) {
     return localStorage.getItem('theme_' + userId);
