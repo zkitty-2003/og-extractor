@@ -478,8 +478,8 @@ class AnalyzeRequest(BaseModel):
     messages: List[Dict[str, Any]]
 
 
-@app.post("/analyze")
-async def analyze_chat_session(
+@app.post("/chat/summary")
+async def summarize_chat_session(
     request: AnalyzeRequest,
     creds: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):

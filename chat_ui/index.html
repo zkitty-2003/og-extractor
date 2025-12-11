@@ -71,6 +71,10 @@
                     <span>ABDUL Chat</span>
                 </div>
                 <div class="header-right">
+                    <button id="summary-btn" class="icon-btn" title="สรุปบทสนทนานี้คุยเรื่องอะไร"
+                        aria-label="สรุปบทสนทนานี้คุยเรื่องอะไร">
+                        <i class="fas fa-list"></i>
+                    </button>
                     <button id="share-btn" class="icon-btn" title="Share Chat">
                         <i class="fas fa-share-alt"></i>
                     </button>
@@ -129,6 +133,25 @@
             <h1>User Profile</h1>
             <p>Sign in to your account to save your chat history.</p>
             <div id="google-login-container"></div>
+        </div>
+    </div>
+
+    <!-- Summary Modal -->
+    <div id="summary-modal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 500px; text-align: left;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="margin: 0;">สรุปหัวข้อของแชทนี้</h3>
+                <i class="fas fa-times" onclick="closeSummaryModal()" style="cursor: pointer; opacity: 0.7;"></i>
+            </div>
+
+            <h4 id="summary-title" style="margin-bottom: 15px; color: var(--accent-color);"></h4>
+            <div id="summary-text" style="line-height: 1.6; margin-bottom: 20px;"></div>
+
+            <div id="summary-topics" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 25px;">
+                <!-- Topics will be inserted here -->
+            </div>
+
+            <button onclick="closeSummaryModal()">ปิด</button>
         </div>
     </div>
 
