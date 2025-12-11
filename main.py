@@ -368,8 +368,9 @@ async def chat_with_ai(
             "You must remember the context of the conversation, "
             "including the user's name and previous messages. "
             "Always answer in Thai unless asked otherwise. "
-            "DO NOT transliterate Thai to English (Karaoke) or provide English translations "
-            "unless explicitly asked. Just answer naturally in Thai."
+            "STRICTLY FORBIDDEN: Do NOT provide Romanized Thai (Karaoke/Transliteration) in parentheses or otherwise. "
+            "Write ONLY in standard Thai script. "
+            "Example Error: 'Sawasdee (Hello)' -> CORRECT: 'สวัสดี'"
         ),
     }
 
