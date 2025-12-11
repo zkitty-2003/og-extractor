@@ -469,7 +469,7 @@ async def summarize_chat_session(
 ):
     api_key = resolve_openrouter_key(creds)
 
-    model = "google/gemini-2.0-flash-exp:free"
+    model = "google/gemma-3-27b-it:free"
 
     conversation_text = ""
     for msg in request.messages:
