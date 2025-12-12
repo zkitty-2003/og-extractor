@@ -798,33 +798,84 @@ async def summarize_simple(
         "max_tokens": 300,
     }
 
-    try:
-        async with httpx.AsyncClient(timeout=60) as client:
-            r = await client.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                    "HTTP-Referer": "https://og-extractor-zxkk.onrender.com",
-                    "X-Title": "FastAPI Chat Simple Summary",
-                },
-                json=payload,
-            )
+    max_retries = 3
+    last_error = ""
 
-        if r.status_code != 200:
-            print("Simple summary error:", r.status_code, r.text)
-            raise HTTPException(status_code=r.status_code, detail="Summary failed")
+    for attempt in range(max_retries):
+        try:
+            async with httpx.AsyncClient(timeout=60) as client:
+                r = await client.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                        "HTTP-Referer": "https://og-extractor-zxkk.onrender.com",
+                        "X-Title": "FastAPI Chat Summary",
+                    },
+                    json=payload,
+                )
 
-        data = r.json()
-        if "choices" in data and data["choices"]:
-            summary_text = data["choices"][0]["message"]["content"].strip()
-            return {"summary": summary_text}
+            # Check for Rate Limit (429) explicitly
+            if r.status_code == 429:
+                print(f"Summary 429 rate limit. Retry {attempt+1}/{max_retries}...")
+                await asyncio.sleep(3 * (attempt + 1)) # Wait 3s, 6s
+                last_error = r.text
+                continue
+            
+            if r.status_code != 200:
+                print(f"Summary failed: {r.status_code}, {r.text}")
+                last_error = r.text
+                # If it's a server error (5xx), maybe retry?
+                if r.status_code >= 500:
+                     await asyncio.sleep(2)
+                     continue
+                break # Client error (4xx) -> stop
 
-        raise HTTPException(status_code=500, detail="No summary returned")
+            # Success path
+            data = r.json()
+            if "choices" in data and data["choices"]:
+                summary_text = data["choices"][0]["message"]["content"]
+                
+                # 🟢 NEW: Attempt to persist this summary to OpenSearch immediately (User Memory)
+                now_iso = datetime.utcnow().isoformat()
+                doc = {
+                    "id": request.chat_id,
+                    "user_email": request.user_email,
+                    "title": "Chat Summary",
+                    "summary": summary_text,
+                    "topics": [],
+                    "message_count": len(request.messages),
+                    "first_message_at": now_iso, # approx
+                    "last_message_at": now_iso
+                }
+                
+                # Fire and forget indexing
+                await index_chat_summary({
+                    "index": "chat_summaries",
+                    "id": request.chat_id,
+                    "body": doc
+                })
 
-    except Exception as e:
-        print("Simple summary exception:", str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+                # Legacy Return format
+                return {
+                    "success": True, 
+                    "data": {
+                        "title": "บทสนทนา", 
+                        "summary": summary_text,
+                        "topics": []
+                    }
+                }
+            
+        except Exception as e:
+            print(f"Summary exception (attempt {attempt}): {e}")
+            last_error = str(e)
+            await asyncio.sleep(2)
+
+    # If loop finishes without success
+    return {
+        "success": False, 
+        "error": f"Failed after {max_retries} retries. Last: {last_error}"
+    }
 
 # ==============================
 # Uvicorn entrypoint
