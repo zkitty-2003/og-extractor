@@ -634,6 +634,7 @@ async function sendMessage() {
                 body: JSON.stringify({
                     message: text,
                     chat_id: currentChatId,
+                    user_email: currentUser ? currentUser.email : null,
                     history: chatHistory.map(msg => ({ role: msg.role, content: msg.content })),
                     model: "google/gemma-3-27b-it:free"
                 })

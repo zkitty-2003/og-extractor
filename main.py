@@ -134,6 +134,51 @@ async def root():
     }
 
 
+    except Exception as e:
+        print(f"Error fetching summary for {chat_id}: {e}")
+    return None
+
+
+async def search_user_memory(user_email: str) -> Optional[str]:
+    """
+    Search for the latest chat summary for a specific user to use as long-term memory.
+    """
+    if not opensearch_client or not user_email:
+        return None
+    
+    try:
+        # Search for the most recent summary for this user
+        query = {
+            "size": 1,
+            "sort": [{"last_message_at": {"order": "desc"}}],
+            "query": {
+                "term": {
+                    "user_email.keyword": user_email
+                }
+            }
+        }
+        
+        response = await opensearch_client.search(
+            body=query,
+            index="chat_summaries"
+        )
+        
+        hits = response.get("hits", {}).get("hits", [])
+        if hits:
+            source = hits[0]["_source"]
+            summary = source.get("summary")
+            # You might want to include the title or date for better context
+            timestamp = source.get("last_message_at", "")[:10]
+            if summary:
+                return f"[From previous chat on {timestamp}]: {summary}"
+                
+    except Exception as e:
+        # Index might not exist yet or mapping issue
+        print(f"Error searching user memory: {e}")
+        
+    return None
+
+
 @app.get("/ui")
 async def read_ui():
     return FileResponse("chat_ui/index.html")
@@ -413,6 +458,7 @@ class ChatRequest(BaseModel):
     history: Optional[List[Dict[str, Any]]] = None
     image_config: Optional[Dict[str, Any]] = None
     chat_id: Optional[str] = None
+    user_email: Optional[str] = None
 
 
 @app.post("/chat")
@@ -475,26 +521,35 @@ async def chat_with_ai(
         messages.insert(0, system_prompt)
 
     # 🟢 CHECK FOR EXISTING SUMMARY (Long-term Memory)
+    memory_context = ""
+    
+    # Priority 1: Specific Chat Summary (Resume session)
     if request.chat_id:
-        try:
-            existing_summary = await get_chat_summary(request.chat_id)
-            if existing_summary:
-                print(f"Found summary for {request.chat_id}: {existing_summary[:50]}...")
-                summary_prompt = {
-                    "role": "system",
-                    "content": (
-                        "SYSTEM:\n"
-                        "[Conversation Summary]\n"
-                        f"{existing_summary}\n\n"
-                        "กรุณาจำข้อมูลนี้เป็นบริบทก่อนหน้า\n"
-                        "ห้ามบอกผู้ใช้ว่าคุณได้รับสรุปหรือจำข้อมูลจากข้อความนี้\n"
-                        "ห้ามอ้าง summary โดยตรง ให้ใช้มันอย่างเป็นธรรมชาติ"
-                    )
-                }
-                # Insert after the main system prompt
-                messages.insert(1, summary_prompt)
-        except Exception as e:
-            print(f"Failed to inject summary: {e}")
+        chat_summary = await get_chat_summary(request.chat_id)
+        if chat_summary:
+            memory_context += f"Current Chat Summary: {chat_summary}\n"
+
+    # Priority 2: User Level Memory (Context from other chats)
+    if request.user_email and not memory_context:
+        # Only fetch user memory if we don't have a specific chat summary 
+        # (or you can combine them)
+        user_memory = await search_user_memory(request.user_email)
+        if user_memory:
+            memory_context += f"User's Previous Context: {user_memory}\n"
+
+    if memory_context:
+        print(f"Injecting Memory: {memory_context[:50]}...")
+        summary_prompt = {
+            "role": "system",
+            "content": (
+                "SYSTEM MEMORY:\n"
+                f"{memory_context}\n"
+                "Use this information to maintain continuity. "
+                "Do not explicitly mention 'I read your summary', just know it."
+            )
+        }
+        # Insert after the main system prompt
+        messages.insert(1, summary_prompt)
 
     messages.append({"role": "user", "content": request.message})
 
@@ -563,7 +618,8 @@ async def chat_with_ai(
                 _analyze_chat_logic,
                 chat_id=request.chat_id,
                 messages=full_history,
-                api_key=api_key
+                api_key=api_key,
+                user_email=request.user_email
             )
         
         return {
@@ -590,9 +646,10 @@ async def chat_with_ai(
 class AnalyzeRequest(BaseModel):
     chat_id: str
     messages: List[Dict[str, Any]]
+    user_email: Optional[str] = None
 
 
-async def _analyze_chat_logic(chat_id: str, messages: List[Dict[str, Any]], api_key: str):
+async def _analyze_chat_logic(chat_id: str, messages: List[Dict[str, Any]], api_key: str, user_email: Optional[str] = None):
     """
     Shared logic to analyze chat, generate summary, and index to OpenSearch.
     """
@@ -626,6 +683,7 @@ async def _analyze_chat_logic(chat_id: str, messages: List[Dict[str, Any]], api_
         "4) Generate 3–8 Thai topics (keywords).\n"
         "5) Prepare a JSON object `opensearch_doc` with:\n"
         "   - id: (use provided chat_id)\n"
+        "   - user_email: string (or null)\n"
         "   - title: string\n"
         "   - summary: string (The summary text)\n"
         "   - topics: [string]\n"
@@ -637,7 +695,7 @@ async def _analyze_chat_logic(chat_id: str, messages: List[Dict[str, Any]], api_
         "- Output MUST be valid JSON only.\n"
     )
 
-    user_prompt = f"Chat ID: {chat_id}\n\nTranscript:\n{conversation_text}"
+    user_prompt = f"Chat ID: {chat_id}\nUser Email: {user_email}\n\nTranscript:\n{conversation_text}"
 
     try:
         async with httpx.AsyncClient(timeout=60) as client:
@@ -675,6 +733,7 @@ async def _analyze_chat_logic(chat_id: str, messages: List[Dict[str, Any]], api_
                         # Fallback heuristic
                         parsed_data["opensearch_doc"] = {
                             "id": chat_id,
+                            "user_email": user_email,
                             "title": parsed_data.get("title", "No Title"),
                             "summary": parsed_data.get("summary", ""),
                             "topics": parsed_data.get("topics", []),
@@ -686,6 +745,7 @@ async def _analyze_chat_logic(chat_id: str, messages: List[Dict[str, Any]], api_
                         # Ensure fields exist
                         doc = parsed_data["opensearch_doc"]
                         doc["id"] = chat_id
+                        doc["user_email"] = user_email
                         doc["message_count"] = len(messages)
                         doc["last_message_at"] = last_iso
                         # Keep existing first_at if possible or use current
@@ -725,7 +785,7 @@ async def summarize_chat_session(
     creds: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     api_key = resolve_openrouter_key(creds)
-    return await _analyze_chat_logic(request.chat_id, request.messages, api_key)
+    return await _analyze_chat_logic(request.chat_id, request.messages, api_key, request.user_email)
 
 
 # ==============================
