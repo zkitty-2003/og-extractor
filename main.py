@@ -1,4 +1,5 @@
-from fastapi import FastAPI, HTTPException, Depends, Response
+from fastapi import FastAPI, HTTPException, Depends, Response, BackgroundTasks
+from datetime import datetime
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -105,6 +106,24 @@ async def index_chat_summary(doc: dict) -> None:
 
     except Exception as e:
         print(f"Error indexing chat summary to OpenSearch: {str(e)}")
+
+
+async def get_chat_summary(chat_id: str) -> Optional[str]:
+    """
+    Retrieve existing summary for a chat_id from OpenSearch.
+    """
+    if not opensearch_client:
+        return None
+    try:
+        # Check if document exists
+        exists = await opensearch_client.exists(index="chat_summaries", id=chat_id)
+        if exists:
+            response = await opensearch_client.get(index="chat_summaries", id=chat_id)
+            if response and "_source" in response:
+                return response["_source"].get("summary")
+    except Exception as e:
+        print(f"Error fetching summary for {chat_id}: {e}")
+    return None
 
 
 @app.get("/")
@@ -393,11 +412,13 @@ class ChatRequest(BaseModel):
     model: Optional[str] = "google/gemma-3-27b-it:free"
     history: Optional[List[Dict[str, Any]]] = None
     image_config: Optional[Dict[str, Any]] = None
+    chat_id: Optional[str] = None
 
 
 @app.post("/chat")
 async def chat_with_ai(
     request: ChatRequest,
+    background_tasks: BackgroundTasks,
     creds: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     api_key = resolve_openrouter_key(creds)
@@ -452,6 +473,28 @@ async def chat_with_ai(
 
     if not messages or messages[0].get("role") != "system":
         messages.insert(0, system_prompt)
+
+    # 🟢 CHECK FOR EXISTING SUMMARY (Long-term Memory)
+    if request.chat_id:
+        try:
+            existing_summary = await get_chat_summary(request.chat_id)
+            if existing_summary:
+                print(f"Found summary for {request.chat_id}: {existing_summary[:50]}...")
+                summary_prompt = {
+                    "role": "system",
+                    "content": (
+                        "SYSTEM:\n"
+                        "[Conversation Summary]\n"
+                        f"{existing_summary}\n\n"
+                        "กรุณาจำข้อมูลนี้เป็นบริบทก่อนหน้า\n"
+                        "ห้ามบอกผู้ใช้ว่าคุณได้รับสรุปหรือจำข้อมูลจากข้อความนี้\n"
+                        "ห้ามอ้าง summary โดยตรง ให้ใช้มันอย่างเป็นธรรมชาติ"
+                    )
+                }
+                # Insert after the main system prompt
+                messages.insert(1, summary_prompt)
+        except Exception as e:
+            print(f"Failed to inject summary: {e}")
 
     messages.append({"role": "user", "content": request.message})
 
@@ -510,6 +553,21 @@ async def chat_with_ai(
                     if "image_url" in img and "url" in img["image_url"]:
                         images.append(img["image_url"]["url"])
 
+                "model": data.get("model"),
+            },
+        }
+
+        # 🟢 BACKGROUND TASK: Auto-Index / Summarize Chat
+        if request.chat_id:
+            # Append AI response to history for the summarizer
+            full_history = messages + [{"role": "assistant", "content": ai_message}]
+            background_tasks.add_task(
+                _analyze_chat_logic,
+                chat_id=request.chat_id,
+                messages=full_history,
+                api_key=api_key
+            )
+        
         return {
             "success": True,
             "data": {
@@ -531,47 +589,56 @@ async def chat_with_ai(
 # 6) Analyze Chat API (Updated with OpenSearch)
 # ==============================
 
-class AnalyzeRequest(BaseModel):
     chat_id: str
     messages: List[Dict[str, Any]]
 
 
-@app.post("/chat/summary")
-async def summarize_chat_session(
-    request: AnalyzeRequest,
-    creds: Optional[HTTPAuthorizationCredentials] = Depends(security),
-):
-    api_key = resolve_openrouter_key(creds)
-
+async def _analyze_chat_logic(chat_id: str, messages: List[Dict[str, Any]], api_key: str):
+    """
+    Shared logic to analyze chat, generate summary, and index to OpenSearch.
+    """
     model = "google/gemma-3-27b-it:free"
 
     conversation_text = ""
-    for msg in request.messages:
+    first_iso = None
+    last_iso = datetime.utcnow().isoformat()
+
+    for i, msg in enumerate(messages):
         role = msg.get("role", "unknown")
         content = msg.get("content", "")
-        timestamp = msg.get("timestamp", "N/A")
-        conversation_text += f"[{timestamp}] {role}: {content}\n"
+        # Skip system prompts in text generation to save tokens, 
+        # usually we only care about user/assistant flow for summary
+        if role == "system": 
+            continue
+        
+        # Determine approx timestamp if not present
+        if first_iso is None:
+            first_iso = last_iso # Fallback
+            
+        conversation_text += f"{role}: {content}\n"
 
     system_prompt = (
         "You are a 'Chat Session Analyzer' for a chat application.\n\n"
-        "You will receive ONE chat session in JSON format with:\n"
-        "- chat_id: string\n"
-        "- messages: an array of objects { \"role\": \"user\" | \"assistant\", \"content\": string, \"timestamp\": string }\n\n"
-        "Your tasks:\n\n"
-        "1) Read and understand the entire conversation.\n"
-        "2) In THAI, summarize what this chat is mainly about:\n"
-        "   - What topics are being discussed?\n"
-        "   - What is the main purpose or intent of the user?\n"
-        "   - What are the key actions, decisions, or conclusions?\n\n"
-        "3) Create a short Thai title for this chat (5–12 words).\n"
-        "4) Generate 3–8 short \"topics\" (tags/keywords) in THAI, each 1–4 words.\n"
-        "5) Prepare a JSON object that can be saved to OpenSearch for this chat.\n"
+        "You will receive a chat transcript.\n"
+        "Your tasks:\n"
+        "1) Read and understand the conversation.\n"
+        "2) In THAI, summarize what this chat is about (topics, intent, conclusions).\n"
+        "3) Create a short Thai title (5–12 words).\n"
+        "4) Generate 3–8 Thai topics (keywords).\n"
+        "5) Prepare a JSON object `opensearch_doc` with:\n"
+        "   - id: (use provided chat_id)\n"
+        "   - title: string\n"
+        "   - summary: string (The summary text)\n"
+        "   - topics: [string]\n"
+        "   - message_count: int\n"
+        "   - first_message_at: ISO string\n"
+        "   - last_message_at: ISO string\n"
         "IMPORTANT RULES:\n"
-        "- All human-readable text (title, summary, topics) MUST be in Thai.\n"
+        "- All text values (title, summary, topics) MUST be in Thai.\n"
         "- Output MUST be valid JSON only.\n"
     )
 
-    user_prompt = f"Chat ID: {request.chat_id}\n\nMessages:\n{conversation_text}"
+    user_prompt = f"Chat ID: {chat_id}\n\nTranscript:\n{conversation_text}"
 
     try:
         async with httpx.AsyncClient(timeout=60) as client:
@@ -595,32 +662,71 @@ async def summarize_chat_session(
 
             if response.status_code != 200:
                 print(f"Analysis failed: {response.text}")
-                raise HTTPException(status_code=response.status_code, detail="Analysis failed")
+                return {"success": False, "error": response.text}
 
             data = response.json()
             if "choices" in data and data["choices"]:
                 content = data["choices"][0]["message"]["content"]
                 
-                # Parse JSON
                 try:
                     parsed_data = json.loads(content)
                     
-                    # 🟢 INDEX TO OPENSEARCH
-                    if "opensearch_doc" in parsed_data:
-                        print(f"Indexing chat {request.chat_id} to OpenSearch...")
-                        await index_chat_summary(parsed_data["opensearch_doc"])
+                    # 🟢 FORCE STRUCTURE UPDATE if missing
+                    if "opensearch_doc" not in parsed_data:
+                        # Fallback heuristic
+                        parsed_data["opensearch_doc"] = {
+                            "id": chat_id,
+                            "title": parsed_data.get("title", "No Title"),
+                            "summary": parsed_data.get("summary", ""),
+                            "topics": parsed_data.get("topics", []),
+                            "message_count": len(messages),
+                            "first_message_at": first_iso or last_iso,
+                            "last_message_at": last_iso
+                        }
+                    else:
+                        # Ensure fields exist
+                        doc = parsed_data["opensearch_doc"]
+                        doc["id"] = chat_id
+                        doc["message_count"] = len(messages)
+                        doc["last_message_at"] = last_iso
+                        # Keep existing first_at if possible or use current
+                        if "first_message_at" not in doc:
+                            doc["first_message_at"] = first_iso or last_iso
+
+                    print(f"Indexing chat {chat_id} to OpenSearch...")
+                    
+                    # Construct valid OpenSearch payload wrapper if needed by index_chat_summary
+                    # index_chat_summary expects {"index":..., "id":..., "body":...} 
+                    # OR just the body? 
+                    # checking index_chat_summary implementation:
+                    # It expects 'doc' dict with keys 'index', 'id', 'body'.
+                    
+                    final_payload = {
+                        "index": "chat_summaries",
+                        "id": chat_id,
+                        "body": parsed_data["opensearch_doc"]
+                    }
+                    
+                    await index_chat_summary(final_payload)
                     
                     return {"success": True, "data": parsed_data}
                 
                 except json.JSONDecodeError:
                     print("JSON Decode Error in Summary", content)
-                    return {"success": True, "data": content}
-
-            raise HTTPException(status_code=500, detail="No content returned")
+                    return {"success": False, "error": "JSON Decode Error"}
 
     except Exception as e:
         print(f"Analysis error: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/chat/summary")
+async def summarize_chat_session(
+    request: AnalyzeRequest,
+    creds: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    api_key = resolve_openrouter_key(creds)
+    return await _analyze_chat_logic(request.chat_id, request.messages, api_key)
 
 
 # ==============================
