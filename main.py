@@ -497,17 +497,24 @@ async def chat_with_ai(
             "You must remember the context of the conversation, "
             "including the user's name and previous messages. "
             "Always answer in Thai unless asked otherwise. "
-            "STRICTLY FORBIDDEN: Do NOT provide Romanized Thai (Transliteration). "
-            "Write ONLY in standard Thai script."
-        ),
-    }
+    # messages = request.history or [] # Original line
 
-    if not messages or messages[0].get("role") != "system":
-        messages.insert(0, system_prompt)
+    system_prompt_content = (
+        "You are ABDUL, a helpful AI assistant. "
+        "You must remember the context of the conversation, "
+        "including the user's name and previous messages. "
+        "Always answer in Thai unless asked otherwise. "
+        "STRICTLY FORBIDDEN: Do NOT provide Romanized Thai (Transliteration). "
+        "Write ONLY in standard Thai script."
+    )
 
+    # messages.insert(0, system_prompt) <- Gemma 3 doesn't support system role
+    # Instead, prepend system instruction to the very first user message (or memory context)
+    
+    combined_system_text = system_prompt_content
+    
     # 🧠 Memory injection from OpenSearch
     memory_context = ""
-
     # Priority 1: this chat summary
     if request.chat_id:
         chat_summary = await get_chat_summary(request.chat_id)
@@ -521,22 +528,36 @@ async def chat_with_ai(
             memory_context += f"User's Previous Context: {user_memory}\n"
 
     if memory_context:
-        summary_prompt = {
-            "role": "system",
-            "content": (
-                "SYSTEM MEMORY:\n"
-                f"{memory_context}\n"
-                "Use this information to maintain continuity. "
-                "Do not explicitly mention 'I read your summary'."
-            ),
-        }
-        messages.insert(1, summary_prompt)
+        combined_system_text += f"\n\nSYSTEM MEMORY:\n{memory_context}\nUse this to maintain continuity."
 
-    messages.append({"role": "user", "content": request.message})
+    # Construct messages list for Gemma 3 (User + Model only)
+    final_messages = []
+    
+    # Prepend system text to the FIRST user message in history or the current message
+    if request.history:
+        # Clone history to avoid mutating original list reference issues
+        final_messages = list(request.history)
+        # Find first user message to inject
+        first_user_idx = -1
+        for i, m in enumerate(final_messages):
+            if m.get("role") == "user":
+                first_user_idx = i
+                break
+        
+        if first_user_idx != -1:
+             final_messages[first_user_idx]["content"] = combined_system_text + "\n\n" + final_messages[first_user_idx]["content"]
+        else:
+             # No user msg in history? weird but ok, inject to current msg
+             request.message = combined_system_text + "\n\n" + request.message
+    else:
+        # No history, just current message
+        request.message = combined_system_text + "\n\n" + request.message
+
+    final_messages.append({"role": "user", "content": request.message})
 
     payload: Dict[str, Any] = {
         "model": request.model,
-        "messages": messages,
+        "messages": final_messages,
         "stream": False,
     }
 
@@ -673,11 +694,14 @@ async def _analyze_chat_logic(
         "}"
     )
 
+    # Merge system prompt into user prompt for Gemma 3 compatibility
+    final_prompt = system_prompt + "\n\n" + f"Chat ID: {chat_id}\nUser Email: {user_email}\n\nTranscript:\n{conversation_text}"
+    
     payload = {
         "model": SUMMARY_MODEL,
         "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": conversation_text},
+            # {"role": "system", "content": system_prompt}, <- REMOVED
+            {"role": "user", "content": final_prompt},
         ],
         "response_format": {"type": "json_object"},
         "max_tokens": 800,
@@ -789,11 +813,14 @@ async def summarize_simple(
         "- ตอบเฉพาะข้อความสรุปอย่างเดียวเท่านั้น"
     )
 
+    # Merge system prompt into user prompt for Gemma 3 compatibility
+    final_prompt = system_prompt + "\n\n" + conversation_text
+
     payload = {
         "model": SUMMARY_MODEL,
         "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": conversation_text},
+            # {"role": "system", "content": system_prompt}, <- REMOVED
+            {"role": "user", "content": final_prompt},
         ],
         "max_tokens": 300,
     }
