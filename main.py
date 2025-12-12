@@ -685,7 +685,7 @@ async def _analyze_chat_logic(chat_id: str, messages: List[Dict[str, Any]], api_
     """
     Shared logic to analyze chat, generate summary, and index to OpenSearch.
     """
-    model = "google/gemini-2.0-flash-lite-preview-02-05:free"
+    model = "google/gemma-2-9b-it:free"
 
     conversation_text = ""
     first_iso = None
