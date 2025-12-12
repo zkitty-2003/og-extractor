@@ -435,16 +435,24 @@ async def translate_text(
 
 
 # ==============================
-# 5) Chat API (มี memory + OpenSearch)
+# 5) Chat API (Simplified)
 # ==============================
 
 class ChatRequest(BaseModel):
     message: str
     model: Optional[str] = "google/gemma-3-27b-it:free"
     history: Optional[List[Dict[str, Any]]] = None
-    image_config: Optional[Dict[str, Any]] = None
     chat_id: Optional[str] = None
     user_email: Optional[str] = None
+
+
+def is_image_generation_prompt(text: str) -> bool:
+    """
+    Checks if the text is likely an image generation prompt.
+    """
+    text_lower = text.lower().strip()
+    keywords = ["/imagine", "/gen", "/image", "/img", "สร้างรูป", "วาดรูป", "generate image", "create image"]
+    return any(text_lower.startswith(kw) for kw in keywords)
 
 
 @app.post("/chat")
@@ -453,110 +461,60 @@ async def chat_with_ai(
     background_tasks: BackgroundTasks,
     creds: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
+    """
+    Main Chat Endpoint (Standard)
+    """
     api_key = resolve_openrouter_key(creds)
 
-    # /translate shortcut command
-    if request.message.strip().startswith("/translate"):
-        text_to_translate = request.message.strip()[10:].strip()
-        if not text_to_translate:
-            return {
-                "success": True,
-                "data": {
-                    "message": "Please provide text to translate. Usage: /translate [Thai text]",
-                    "images": [],
-                    "model": "system",
-                },
-            }
+    # 1. Translate if needed (Logic remains samte)
+    if is_image_generation_prompt(request.message):
+        print(f"Detected image prompt: {request.message}")
+        text_to_translate = request.message.strip()
+        # Remove the command prefix for translation
+        for kw in ["/imagine", "/gen", "/image", "/img", "สร้างรูป", "วาดรูป", "generate image", "create image"]:
+            if text_to_translate.lower().startswith(kw):
+                text_to_translate = text_to_translate[len(kw):].strip()
+                break
 
+        translated_text, logs = await _translate_logic(text_to_translate, api_key)
+        
         try:
-            translated_text, _ = await _translate_logic(text_to_translate, api_key)
             return {
-                "success": True,
-                "data": {
-                    "message": translated_text,
-                    "images": [],
-                    "model": "google/gemma-3-4b-it:free",
-                },
+               "success": True,
+               "data": {
+                   "message": translated_text,
+                   "images": [],
+                   "model": "google/gemma-3-4b-it:free",
+               },
             }
         except Exception as e:
-            return {
-                "success": False,
-                "data": {
-                    "message": f"Translation error: {str(e)}",
-                    "images": [],
-                    "model": "error",
-                },
-            }
+             return {"success": False, "error": str(e)}
 
+    # 2. Prepare Messages
     messages = request.history or []
-
-    messages = request.history or []
-
-    system_prompt_content = (
-        "You are ABDUL, a helpful AI assistant. "
-        "You must remember the context of the conversation, "
-        "including the user's name and previous messages. "
-        "Always answer in Thai unless asked otherwise. "
-        "STRICTLY FORBIDDEN: Do NOT provide Romanized Thai (Transliteration). "
-        "Write ONLY in standard Thai script."
-    )
-
-    # messages.insert(0, system_prompt) <- Gemma 3 doesn't support system role
-    # Instead, prepend system instruction to the very first user message (or memory context)
     
-    combined_system_text = system_prompt_content
+    # Simple System Prompt
+    system_prompt = {
+        "role": "system",
+        "content": (
+            "You are ABDUL, a helpful AI assistant. "
+            "Always answer in Thai unless asked otherwise. "
+            "Do NOT use Romanized Thai."
+        )
+    }
     
-    # 🧠 Memory injection from OpenSearch
-    memory_context = ""
-    # Priority 1: this chat summary
-    if request.chat_id:
-        chat_summary = await get_chat_summary(request.chat_id)
-        if chat_summary:
-            memory_context += f"Current Chat Summary: {chat_summary}\n"
+    # Insert system prompt at start
+    if not messages or messages[0].get("role") != "system":
+        messages.insert(0, system_prompt)
 
-    # Priority 2: user-level memory
-    if request.user_email and not memory_context:
-        user_memory = await search_user_memory(request.user_email)
-        if user_memory:
-            memory_context += f"User's Previous Context: {user_memory}\n"
+    messages.append({"role": "user", "content": request.message})
 
-    if memory_context:
-        combined_system_text += f"\n\nSYSTEM MEMORY:\n{memory_context}\nUse this to maintain continuity."
-
-    # Construct messages list for Gemma 3 (User + Model only)
-    final_messages = []
-    
-    # Prepend system text to the FIRST user message in history or the current message
-    if request.history:
-        # Clone history to avoid mutating original list reference issues
-        final_messages = list(request.history)
-        # Find first user message to inject
-        first_user_idx = -1
-        for i, m in enumerate(final_messages):
-            if m.get("role") == "user":
-                first_user_idx = i
-                break
-        
-        if first_user_idx != -1:
-             final_messages[first_user_idx]["content"] = combined_system_text + "\n\n" + final_messages[first_user_idx]["content"]
-        else:
-             # No user msg in history? weird but ok, inject to current msg
-             request.message = combined_system_text + "\n\n" + request.message
-    else:
-        # No history, just current message
-        request.message = combined_system_text + "\n\n" + request.message
-
-    final_messages.append({"role": "user", "content": request.message})
-
-    payload: Dict[str, Any] = {
+    # 3. Call AI
+    payload = {
         "model": request.model,
-        "messages": final_messages,
+        "messages": messages,
         "stream": False,
     }
-
-    if request.image_config:
-        payload["modalities"] = ["image", "text"]
-        payload["image_config"] = request.image_config
 
     try:
         async with httpx.AsyncClient(timeout=60) as client:
@@ -572,38 +530,12 @@ async def chat_with_ai(
             )
 
         if response.status_code != 200:
-            print("OpenRouter error status:", response.status_code)
-            print("OpenRouter error body:", response.text)
-
-            try:
-                err_json = response.json()
-                if "error" in err_json and "message" in err_json["error"]:
-                    msg = err_json["error"]["message"]
-                else:
-                    msg = response.text
-            except Exception:
-                msg = response.text
-
-            raise HTTPException(
-                status_code=response.status_code,
-                detail=f"OpenRouter Error: {msg}",
-            )
+             return {"success": False, "error": f"OpenRouter Error: {response.text}"}
 
         data = response.json()
+        ai_message = data["choices"][0]["message"]["content"]
 
-        ai_message = ""
-        images: List[str] = []
-
-        if "choices" in data and data["choices"]:
-            message_obj = data["choices"][0]["message"]
-            ai_message = message_obj.get("content", "")
-
-            if "images" in message_obj:
-                for img in message_obj["images"]:
-                    if "image_url" in img and "url" in img["image_url"]:
-                        images.append(img["image_url"]["url"])
-
-        # 🟢 BACKGROUND TASK: Quick OpenSearch update
+        # 4. Background Task (Simple Update)
         if request.chat_id:
             full_history = messages + [{"role": "assistant", "content": ai_message}]
             background_tasks.add_task(
@@ -617,21 +549,18 @@ async def chat_with_ai(
             "success": True,
             "data": {
                 "message": ai_message,
-                "images": images,
-                "model": data.get("model"),
+                "images": [],
+                "model": data.get("model", request.model),
             },
         }
 
-    except HTTPException:
-        raise
-    except httpx.RequestError as e:
-        raise HTTPException(status_code=500, detail=f"Connection error: {str(e)}")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        print(f"Chat error: {e}")
+        return {"success": False, "error": str(e)}
 
 
 # ==============================
-# 6) Analyze Chat API (Updated / เบา)
+# 6) Analyze Chat API (Stable Version)
 # ==============================
 
 class AnalyzeRequest(BaseModel):
@@ -647,17 +576,13 @@ async def _analyze_chat_logic(
     user_email: Optional[str] = None,
 ):
     """
-    วิเคราะห์แชทยาว ๆ แล้วเตรียม opensearch_doc
-    ใช้โมเดล google/gemma-3-27b-it:free
-    (ยังจำกัดข้อความล่าสุดไม่เกิน 50 ข้อ เหมือนเดิม)
+    Stabilized Analyzer using Gemma 2 9b (Solid choice)
     """
-    SUMMARY_MODEL = "google/gemma-3-27b-it:free"
-    MAX_MSG = 50
+    SUMMARY_MODEL = "google/gemma-2-9b-it:free"
 
-    trimmed: List[Dict[str, Any]] = []
-    for m in messages[-MAX_MSG:]:
-        if m.get("role") in ["user", "assistant"]:
-            trimmed.append(m)
+    # Use last 40 messages to be safe
+    MAX_MSG = 40
+    trimmed = [m for m in messages[-MAX_MSG:] if m.get("role") in ("user", "assistant")]
 
     conversation_text = ""
     for m in trimmed:
@@ -666,35 +591,17 @@ async def _analyze_chat_logic(
 
     system_prompt = (
         "คุณคือระบบวิเคราะห์แชทภาษาไทย\n"
-        "- สรุปบทสนทนาเป็นภาษาไทยแบบกระชับ\n"
-        "- ตั้งชื่อเรื่อง (title) 5–12 คำ\n"
-        "- สร้างหัวข้อ (topics) 3–8 คำ\n"
-        "- ตอบกลับเป็น JSON เท่านั้น โครงสร้าง:\n"
-        "{\n"
-        "  \"title\": \"...\",\n"
-        "  \"summary\": \"...\",\n"
-        "  \"topics\": [\"...\", \"...\"],\n"
-        "  \"opensearch_doc\": {\n"
-        "       \"id\": \"...\",\n"
-        "       \"user_email\": \"...\",\n"
-        "       \"title\": \"...\",\n"
-        "       \"summary\": \"...\",\n"
-        "       \"topics\": [\"...\"],\n"
-        "       \"message_count\": 10,\n"
-        "       \"first_message_at\": \"...\",\n"
-        "       \"last_message_at\": \"...\"\n"
-        "   }\n"
-        "}"
+        "- สรุปบทสนทนาเป็นภาษาไทย\n"
+        "- ตั้งชื่อเรื่อง (title)\n"
+        "- สร้างหัวข้อ (topics)\n"
+        "- ตอบเป็น JSON: { title, summary, topics, opensearch_doc: {...} }"
     )
 
-    # Merge system prompt into user prompt for Gemma 3 compatibility
-    final_prompt = system_prompt + "\n\n" + f"Chat ID: {chat_id}\nUser Email: {user_email}\n\nTranscript:\n{conversation_text}"
-    
     payload = {
         "model": SUMMARY_MODEL,
         "messages": [
-            # {"role": "system", "content": system_prompt}, <- REMOVED
-            {"role": "user", "content": final_prompt},
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": conversation_text},
         ],
         "response_format": {"type": "json_object"},
         "max_tokens": 800,
@@ -706,50 +613,41 @@ async def _analyze_chat_logic(
                 "https://openrouter.ai/api/v1/chat/completions",
                 headers={
                     "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
                     "HTTP-Referer": "https://og-extractor-zxkk.onrender.com",
-                    "X-Title": "FastAPI Chat Analyzer",
+                    "X-Title": "FastAPI Analyzer",
                 },
                 json=payload,
             )
 
         if r.status_code != 200:
-            print("Analysis failed:", r.status_code, r.text)
-            return {"success": False, "error": r.text}
+             return {"success": False, "error": r.text}
 
         data = r.json()
         content = data["choices"][0]["message"]["content"]
-
         parsed = json.loads(content)
 
+        # Standard OpenSearch Doc Prep
         doc = parsed.get("opensearch_doc", {})
         now_iso = datetime.utcnow().isoformat()
-
-        doc.setdefault("id", chat_id)
-        doc.setdefault("user_email", user_email)
-        doc.setdefault("title", parsed.get("title", "No Title"))
-        doc.setdefault("summary", parsed.get("summary", ""))
-        doc.setdefault("topics", parsed.get("topics", []))
-        doc["message_count"] = len(messages)
-        doc.setdefault("first_message_at", now_iso)
+        doc["id"] = chat_id
+        doc["user_email"] = user_email
+        doc["title"] = parsed.get("title", "No Title")
+        doc["summary"] = parsed.get("summary", "")
+        doc["topics"] = parsed.get("topics", [])
         doc["last_message_at"] = now_iso
-
+        
         parsed["opensearch_doc"] = doc
 
-        await index_chat_summary(
-            {
-                "index": "chat_summaries",
-                "id": chat_id,
-                "body": doc,
-            }
-        )
+        await index_chat_summary({
+            "index": "chat_summaries", 
+            "id": chat_id, 
+            "body": doc
+        })
 
         return {"success": True, "data": parsed}
 
     except Exception as e:
-        print("Analysis exception:", e)
         return {"success": False, "error": str(e)}
-
 
 
 @app.post("/chat/summary")
@@ -764,12 +662,13 @@ async def summarize_chat_session(
 
 
 # ==============================
-# 7) Simple Summary API สำหรับปุ่มสรุปใน UI
+# 7) Simple Summary API (Button)
 # ==============================
 
 class SimpleSummaryRequest(BaseModel):
-    chat_id: Optional[str] = None
+    chat_id: str
     messages: List[Dict[str, Any]]
+    user_email: Optional[str] = None
 
 
 @app.post("/summary")
@@ -778,124 +677,64 @@ async def summarize_simple(
     creds: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """
-    ใช้สำหรับปุ่มสรุปในหน้าเว็บ:
-    รับ { chat_id, messages } แล้วตอบกลับเป็น { summary: "..." }
-    ใช้โมเดล google/gemma-3-27b-it:free และอ่านแค่ 30 ข้อความล่าสุด
+    Restored Simple Summary
+    Also uses Gemma 2 9b for stability
     """
     api_key = resolve_openrouter_key(creds)
-
-    SUMMARY_MODEL = "google/gemma-3-27b-it:free"
-    MAX_MSG = 30
-
-    # ดึงแค่ 30 ข้อความล่าสุด
-    recent_messages = request.messages[-MAX_MSG:]
+    SUMMARY_MODEL = "google/gemma-2-9b-it:free"
 
     conversation_text = ""
-    for msg in recent_messages:
+    for msg in request.messages[-30:]:
         role = msg.get("role", "user")
         content = msg.get("content", "")
-        role_th = "ผู้ใช้" if role == "user" else "ผู้ช่วย"
-        conversation_text += f"{role_th}: {content}\n"
+        conversation_text += f"{role}: {content}\n"
 
-    system_prompt = (
-        "คุณเป็นระบบสรุปบทสนทนาภาษาไทยแบบสั้น ๆ.\n"
-        "คุณมีความจำดีมาก สามารถจำรายละเอียดของบทสนทนาได้ทั้งหมด\n"
-        "- อ่านแชทด้านล่างแล้วสรุปหัวข้อที่พูดคุยกัน\n"
-        "- ให้ตอบเป็นภาษาไทย 2–4 ประโยค สั้น กระชับ ชัดเจน\n"
-        "- ห้ามเขียนคำว่า \"สรุป\", \"จากบทสนทนา\" ฯลฯ\n"
-        "- ตอบเฉพาะข้อความสรุปอย่างเดียวเท่านั้น"
-    )
-
-    # Merge system prompt into user prompt for Gemma 3 compatibility
-    final_prompt = system_prompt + "\n\n" + conversation_text
-
-    payload = {
-        "model": SUMMARY_MODEL,
-        "messages": [
-            # {"role": "system", "content": system_prompt}, <- REMOVED
-            {"role": "user", "content": final_prompt},
-        ],
-        "max_tokens": 300,
-    }
-
+    # Retry Logic (Keep this, it's useful)
     max_retries = 3
-    last_error = ""
-
     for attempt in range(max_retries):
         try:
             async with httpx.AsyncClient(timeout=60) as client:
                 r = await client.post(
                     "https://openrouter.ai/api/v1/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {api_key}",
-                        "Content-Type": "application/json",
-                        "HTTP-Referer": "https://og-extractor-zxkk.onrender.com",
-                        "X-Title": "FastAPI Chat Summary",
-                    },
-                    json=payload,
+                    headers={"Authorization": f"Bearer {api_key}"},
+                    json={
+                        "model": SUMMARY_MODEL,
+                        "messages": [
+                            {"role": "system", "content": "Summarize this chat in Thai (2-3 sentences)."},
+                            {"role": "user", "content": conversation_text}
+                        ]
+                    }
                 )
-
-            # Check for Rate Limit (429) explicitly
-            if r.status_code == 429:
-                print(f"Summary 429 rate limit. Retry {attempt+1}/{max_retries}...")
-                await asyncio.sleep(3 * (attempt + 1)) # Wait 3s, 6s
-                last_error = r.text
-                continue
             
-            if r.status_code != 200:
-                print(f"Summary failed: {r.status_code}, {r.text}")
-                last_error = r.text
-                # If it's a server error (5xx), maybe retry?
-                if r.status_code >= 500:
-                     await asyncio.sleep(2)
-                     continue
-                break # Client error (4xx) -> stop
-
-            # Success path
-            data = r.json()
-            if "choices" in data and data["choices"]:
-                summary_text = data["choices"][0]["message"]["content"]
+            if r.status_code == 429:
+                await asyncio.sleep(3 * (attempt + 1))
+                continue
                 
-                # 🟢 NEW: Attempt to persist this summary to OpenSearch immediately (User Memory)
-                now_iso = datetime.utcnow().isoformat()
-                doc = {
-                    "id": request.chat_id,
-                    "user_email": request.user_email,
-                    "title": "Chat Summary",
-                    "summary": summary_text,
-                    "topics": [],
-                    "message_count": len(request.messages),
-                    "first_message_at": now_iso, # approx
-                    "last_message_at": now_iso
-                }
+            if r.status_code == 200:
+                data = r.json()
+                summary = data["choices"][0]["message"]["content"]
                 
-                # Fire and forget indexing
+                # Auto-save minimal doc
                 await index_chat_summary({
                     "index": "chat_summaries",
                     "id": request.chat_id,
-                    "body": doc
+                    "body": {
+                        "id": request.chat_id,
+                        "user_email": request.user_email,
+                        "summary": summary,
+                        "last_message_at": datetime.utcnow().isoformat()
+                    }
                 })
-
-                # Legacy Return format
+                
                 return {
                     "success": True, 
-                    "data": {
-                        "title": "บทสนทนา", 
-                        "summary": summary_text,
-                        "topics": []
-                    }
+                    "data": {"summary": summary}
                 }
-            
-        except Exception as e:
-            print(f"Summary exception (attempt {attempt}): {e}")
-            last_error = str(e)
+                
+        except Exception:
             await asyncio.sleep(2)
-
-    # If loop finishes without success
-    return {
-        "success": False, 
-        "error": f"Failed after {max_retries} retries. Last: {last_error}"
-    }
+            
+    return {"success": False, "error": "Summary failed after retries"}
 
 # ==============================
 # Uvicorn entrypoint
