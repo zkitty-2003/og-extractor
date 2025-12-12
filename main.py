@@ -685,7 +685,7 @@ async def _analyze_chat_logic(chat_id: str, messages: List[Dict[str, Any]], api_
     """
     Shared logic to analyze chat, generate summary, and index to OpenSearch.
     """
-    model = "google/gemma-3-27b-it:free"
+    model = "google/gemini-2.0-flash-lite-preview-02-05:free"
 
     conversation_text = ""
     first_iso = None
@@ -757,7 +757,7 @@ async def _analyze_chat_logic(chat_id: str, messages: List[Dict[str, Any]], api_
                 if response.status_code == 429:
                     print(f"Rate limited (429). Retrying {attempt + 1}/{max_retries}...")
                     if attempt < max_retries - 1:
-                        await asyncio.sleep(2 * (attempt + 1)) # Backoff: 2s, 4s, 6s
+                        await asyncio.sleep(5 * (attempt + 1)) # Backoff: 5s, 10s, 15s
                         continue
                     else:
                          return {"success": False, "error": f"Rate limit exceeded after {max_retries} attempts."}
