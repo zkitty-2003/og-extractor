@@ -633,12 +633,11 @@ async def _analyze_chat_logic(
     user_email: Optional[str] = None,
 ):
     """
-    เวอร์ชันวิเคราะห์แชทแบบเบา
-    - ใช้โมเดล free ขนาด 4B
-    - ใช้ข้อความล่าสุดไม่เกิน 50 ข้อความ
+    วิเคราะห์แชทยาว ๆ แล้วเตรียม opensearch_doc
+    ใช้โมเดล google/gemma-3-27b-it:free
+    (ยังจำกัดข้อความล่าสุดไม่เกิน 50 ข้อ เหมือนเดิม)
     """
     SUMMARY_MODEL = "google/gemma-3-27b-it:free"
-
     MAX_MSG = 50
 
     trimmed: List[Dict[str, Any]] = []
@@ -706,7 +705,6 @@ async def _analyze_chat_logic(
 
         parsed = json.loads(content)
 
-        # ดึง / เติมข้อมูลสำหรับ OpenSearch
         doc = parsed.get("opensearch_doc", {})
         now_iso = datetime.utcnow().isoformat()
 
@@ -721,7 +719,6 @@ async def _analyze_chat_logic(
 
         parsed["opensearch_doc"] = doc
 
-        # index ลง OpenSearch
         await index_chat_summary(
             {
                 "index": "chat_summaries",
@@ -735,6 +732,7 @@ async def _analyze_chat_logic(
     except Exception as e:
         print("Analysis exception:", e)
         return {"success": False, "error": str(e)}
+
 
 
 @app.post("/chat/summary")
@@ -765,7 +763,7 @@ async def summarize_simple(
     """
     ใช้สำหรับปุ่มสรุปในหน้าเว็บ:
     รับ { chat_id, messages } แล้วตอบกลับเป็น { summary: "..." }
-    ใช้โมเดลฟรีขนาดเล็ก และอ่านแค่ 30 ข้อความล่าสุด
+    ใช้โมเดล google/gemma-3-27b-it:free และอ่านแค่ 30 ข้อความล่าสุด
     """
     api_key = resolve_openrouter_key(creds)
 
@@ -775,7 +773,6 @@ async def summarize_simple(
     # ดึงแค่ 30 ข้อความล่าสุด
     recent_messages = request.messages[-MAX_MSG:]
 
-    # แปลง messages เป็น text ธรรมดา
     conversation_text = ""
     for msg in recent_messages:
         role = msg.get("role", "user")
@@ -786,10 +783,10 @@ async def summarize_simple(
     system_prompt = (
         "คุณเป็นระบบสรุปบทสนทนาภาษาไทยแบบสั้น ๆ.\n"
         "คุณมีความจำดีมาก สามารถจำรายละเอียดของบทสนทนาได้ทั้งหมด\n"
-        "- งานของคุณคือ อ่านแชททั้งหมด แล้วสรุปว่าในแชทนี้เขาคุยเรื่องอะไรเป็นหลัก\n"
-        "- ให้ตอบเป็นภาษาไทย 2–4 ประโยค สั้น กระชับ แต่ชัดเจน\n"
-        "- ห้ามใส่คำอธิบายส่วนเกิน เช่น \"สรุปแล้ว\", \"จากบทสนทนา\" ฯลฯ\n"
-        "- ให้ตอบเฉพาะข้อความสรุปอย่างเดียวเท่านั้น"
+        "- อ่านแชทด้านล่างแล้วสรุปหัวข้อที่พูดคุยกัน\n"
+        "- ให้ตอบเป็นภาษาไทย 2–4 ประโยค สั้น กระชับ ชัดเจน\n"
+        "- ห้ามเขียนคำว่า \"สรุป\", \"จากบทสนทนา\" ฯลฯ\n"
+        "- ตอบเฉพาะข้อความสรุปอย่างเดียวเท่านั้น"
     )
 
     payload = {
@@ -828,7 +825,6 @@ async def summarize_simple(
     except Exception as e:
         print("Simple summary exception:", str(e))
         raise HTTPException(status_code=500, detail=str(e))
-
 
 # ==============================
 # Uvicorn entrypoint
