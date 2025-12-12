@@ -138,6 +138,39 @@ async def root():
 
 
 
+    return None
+
+
+async def quick_update_opensearch(chat_id: str, user_email: Optional[str], message_count: int):
+    """
+    Lightweight update to OpenSearch (timestamp & count only) without invoking LLM.
+    Prevents Rate Limit exhaustion from background tasks.
+    """
+    if not opensearch_client:
+        return
+
+    try:
+        body = {
+            "doc": {
+                "last_message_at": datetime.utcnow().isoformat(),
+                "message_count": message_count,
+            },
+            "doc_as_upsert": True
+        }
+        if user_email:
+            body["doc"]["user_email"] = user_email
+
+        await opensearch_client.update(
+            index="chat_summaries",
+            id=chat_id,
+            body=body
+        )
+        # print(f"Quick updated chat {chat_id}")
+    except Exception as e:
+        # Ignore "document missing" if strict update, but doc_as_upsert handles creation
+        print(f"Quick update OS failed: {e}")
+
+
 async def search_user_memory(user_email: str) -> Optional[str]:
     """
     Search for the latest chat summary for a specific user to use as long-term memory.
@@ -611,14 +644,14 @@ async def chat_with_ai(
 
         # 🟢 BACKGROUND TASK: Auto-Index / Summarize Chat
         if request.chat_id:
-            # Append AI response to history for the summarizer
+            # 🟢 LIGHTWEIGHT UPDATE logic
+            # Just update the timestamp and count, DON'T call the heavy LLM summarizer
             full_history = messages + [{"role": "assistant", "content": ai_message}]
             background_tasks.add_task(
-                _analyze_chat_logic,
+                quick_update_opensearch,
                 chat_id=request.chat_id,
-                messages=full_history,
-                api_key=api_key,
-                user_email=request.user_email
+                user_email=request.user_email,
+                message_count=len(full_history)
             )
         
         return {
