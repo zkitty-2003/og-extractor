@@ -134,9 +134,7 @@ async def root():
     }
 
 
-    except Exception as e:
-        print(f"Error fetching summary for {chat_id}: {e}")
-    return None
+
 
 
 async def search_user_memory(user_email: str) -> Optional[str]:
