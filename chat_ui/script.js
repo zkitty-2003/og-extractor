@@ -269,6 +269,27 @@ function handleLogout() {
 }
 
 // --- Chat History Logic ---
+const LAST_SESSION_KEY = 'last_session_summary';
+
+// 1) ฟังก์ชันจัดการ Memory ฝั่ง Client (localStorage)
+function saveLastSessionSummary(summaryObj) {
+    if (!summaryObj) return;
+    const data = {
+        ...summaryObj,
+        updated_at: new Date().toISOString()
+    };
+    localStorage.setItem(LAST_SESSION_KEY, JSON.stringify(data));
+    console.log("บันทึกสรุปแชทล่าสุดลง LocalStorage แล้ว:", data);
+}
+
+function getLastSessionSummary() {
+    const raw = localStorage.getItem(LAST_SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+}
+
+function clearLastSessionSummary() {
+    localStorage.removeItem(LAST_SESSION_KEY);
+}
 
 function getStorageKey() {
     return currentUser ? `chat_history_${currentUser.email}` : 'chat_history_guest';
@@ -548,6 +569,46 @@ async function sendMessage() {
     const text = messageInput.value.trim();
     if (!text) return;
 
+    // 🆕 3) ดักจับคำถามเกี่ยวกับแชทก่อนหน้า (Client-side Memory)
+    // เช็คว่า User ถามหา "เรื่องที่แล้ว" หรือไม่
+    const normalized = text.replace(/\s+/g, '');
+    const askLastTopicRegex = /(ก่อนหน้านี้เราคุยเรื่องอะไรอยู่|เมื่อกี้เราคุยเรื่องอะไร|สรุปแชทที่แล้วให้หน่อย|คุยเรื่องอะไรกันไป)/;
+
+    if (askLastTopicRegex.test(normalized)) {
+        // แสดงข้อความ User
+        appendMessage(text, 'user');
+        messageInput.value = '';
+
+        // จำลองการคิดนิดหน่อย
+        setBusyState(true);
+
+        setTimeout(() => {
+            const lastSummary = getLastSessionSummary();
+
+            if (lastSummary) {
+                // ถ้ามีข้อมูลใน LocalStorage
+                const topicsStr = Array.isArray(lastSummary.topics) ? lastSummary.topics.join(", ") : "-";
+                const answer = `**จากแชทก่อนหน้านี้ที่คุณเพิ่งคุยไว้ ระบบจำได้ว่าเราคุยกันเรื่อง:**\n\n` +
+                    `- **หัวข้อหลัก:** ${lastSummary.title}\n` +
+                    `- **สรุปโดยรวม:**\n${lastSummary.summary}\n` +
+                    `- **แท็ก/หัวข้อย่อย:** ${topicsStr}\n\n` +
+                    `ถ้าต้องการให้พี่ช่วยต่อจากเรื่องเดิม ก็บอกได้เลยนะคะ 🙂`;
+
+                appendMessage(answer, 'ai');
+            } else {
+                // ถ้าไม่มีข้อมูล
+                appendMessage("ยังไม่มีสรุปแชทก่อนหน้าให้เลยครับ หรือคุณอาจยังไม่ได้กดปุ่ม **'สรุปแชทนี้'** ในแชทที่แล้วลองกลับไปกดดูก่อนนะ", 'ai');
+            }
+
+            setBusyState(false);
+        }, 600); // ดีเลย์เล็กน้อยให้ดูเหมือนประมวลผล
+
+        return; // ⛔️ จบการทำงาน ไม่ต้องส่งไป Backend
+    }
+
+    // --- Flow ปกติ (ยิงไป Backend) ---
+
+
     // Lock UI
     setBusyState(true);
 
@@ -817,7 +878,7 @@ async function loadSharedChat(shareId) {
     }
 }
 
-// ฟังก์ชันสรุปแชทเวอร์ชันเรียก backend
+// ฟังก์ชันสรุปแชทเวอร์ชันเรียก backend (แก้ไขใหม่ให้รองรับ Memory)
 async function summarizeCurrentChat() {
     console.log("Summary button clicked. currentChatId =", currentChatId);
 
@@ -826,21 +887,21 @@ async function summarizeCurrentChat() {
         return;
     }
 
-    // ล็อก UI ไว้เหมือนตอนส่งข้อความปกติ
     setBusyState(true);
 
     try {
         const headers = { 'Content-Type': 'application/json' };
         if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
 
-        // เรียก backend /summary
-        const res = await fetch('/summary', {
+        // 🆕 เรียก /chat/summary (แบบเต็ม) เพื่อเอา title/topics/summary
+        const res = await fetch('/chat/summary', {
             method: 'POST',
             headers,
             body: JSON.stringify({
                 chat_id: currentChatId,
+                user_email: currentUser ? currentUser.email : null,
                 messages: chatHistory.map(m => ({
-                    role: m.role,          // "user" | "assistant"
+                    role: m.role,
                     content: m.content
                 }))
             })
@@ -851,13 +912,26 @@ async function summarizeCurrentChat() {
             throw new Error(err.detail || 'Summary server error');
         }
 
-        const data = await res.json();
+        const responseJson = await res.json();
+        // Backend คืนค่า: { "success": true, "data": { title, summary, topics, ... } }
 
-        // สมมติ backend ส่ง { summary: "...." }
-        const summaryText = data.summary || 'ไม่ได้รับข้อความสรุปจากเซิร์ฟเวอร์';
+        if (responseJson.success && responseJson.data) {
+            const data = responseJson.data;
+            const summaryText = data.summary || 'ไม่ได้รับข้อความสรุป';
 
-        // ให้ AI พิมพ์สรุปลงในแชทเลย
-        appendMessage("สรุปหัวข้อของแชทนี้:\n" + summaryText, 'ai');
+            // แสดงผลในแชทปัจจุบัน
+            appendMessage("สรุปหัวข้อของแชทนี้:\n" + summaryText, 'ai');
+
+            // 🆕 บันทึกลง LocalStorage เพื่อใช้เป็น Memory ข้ามแชท (Last Session)
+            saveLastSessionSummary({
+                chat_id: currentChatId,
+                title: data.title,
+                summary: data.summary,
+                topics: data.topics
+            });
+        } else {
+            throw new Error("Invalid response format");
+        }
 
     } catch (err) {
         console.error('Summary error:', err);
