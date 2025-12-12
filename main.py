@@ -637,7 +637,7 @@ async def _analyze_chat_logic(
     - ใช้โมเดล free ขนาด 4B
     - ใช้ข้อความล่าสุดไม่เกิน 50 ข้อความ
     """
-    SUMMARY_MODEL = "meta-llama/llama-3.2-1b-instruct:free"
+    SUMMARY_MODEL = "google/gemma-3-27b-it:free"
 
     MAX_MSG = 50
 
