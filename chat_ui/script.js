@@ -915,9 +915,21 @@ async function summarizeCurrentChat() {
         const responseJson = await res.json();
         // Backend คืนค่า: { "success": true, "data": { title, summary, topics, ... } }
 
-        if (responseJson.success && responseJson.data) {
-            const data = responseJson.data;
-            const summaryText = data.summary || 'ไม่ได้รับข้อความสรุป';
+        if (responseJson.success) {
+            const data = responseJson.data || {};
+
+            // รองรับทั้งแบบ Flat และแบบ Nested (opensearch_doc)
+            let summaryText = data.summary;
+            let title = data.title;
+            let topics = data.topics;
+
+            if (!summaryText && data.opensearch_doc) {
+                summaryText = data.opensearch_doc.summary;
+                title = data.opensearch_doc.title;
+                topics = data.opensearch_doc.topics;
+            }
+
+            summaryText = summaryText || 'ไม่ได้รับข้อความสรุป';
 
             // แสดงผลในแชทปัจจุบัน
             appendMessage("สรุปหัวข้อของแชทนี้:\n" + summaryText, 'ai');
@@ -925,12 +937,12 @@ async function summarizeCurrentChat() {
             // 🆕 บันทึกลง LocalStorage เพื่อใช้เป็น Memory ข้ามแชท (Last Session)
             saveLastSessionSummary({
                 chat_id: currentChatId,
-                title: data.title,
-                summary: data.summary,
-                topics: data.topics
+                title: title || 'No Title',
+                summary: summaryText,
+                topics: topics || []
             });
         } else {
-            throw new Error("Invalid response format");
+            throw new Error(responseJson.error || "Unknown error from backend");
         }
 
     } catch (err) {
