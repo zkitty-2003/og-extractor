@@ -683,161 +683,103 @@ class AnalyzeRequest(BaseModel):
 
 async def _analyze_chat_logic(chat_id: str, messages: List[Dict[str, Any]], api_key: str, user_email: Optional[str] = None):
     """
-    Shared logic to analyze chat, generate summary, and index to OpenSearch.
+    เวอร์ชันเบา → ใช้ฟรีได้จริง โดยไม่ชน 429 ง่าย ๆ
+    สรุปแชทสำหรับ OpenSearch
     """
-    model = "google/gemma-3-27b-it:free"
 
+    SUMMARY_MODEL = "google/gemma-3-4b-it:free"   # ✔ เบามาก / ✔ ฟรี / ✔ รอด 429 ง่ายมาก
+    MAX_MSG = 50                                   # ใช้ล่าสุด 50 ข้อความสำหรับ summary
+    MAX_RETRIES = 1                                # ไม่ retry หลายรอบ
+
+    # เก็บเฉพาะข้อความสำคัญ (user/assistant)
+    trimmed = []
+    for m in messages[-MAX_MSG:]:
+        if m.get("role") in ["user", "assistant"]:
+            trimmed.append(m)
+
+    # แปลงเป็น text
     conversation_text = ""
-    first_iso = None
-    last_iso = datetime.utcnow().isoformat()
-
-    for i, msg in enumerate(messages):
-        role = msg.get("role", "unknown")
-        content = msg.get("content", "")
-        # Skip system prompts in text generation to save tokens, 
-        # usually we only care about user/assistant flow for summary
-        if role == "system": 
-            continue
-        
-        # Determine approx timestamp if not present
-        if first_iso is None:
-            first_iso = last_iso # Fallback
-            
-        conversation_text += f"{role}: {content}\n"
+    for m in trimmed:
+        role = "ผู้ใช้" if m["role"] == "user" else "ผู้ช่วย"
+        conversation_text += f"{role}: {m['content']}\n"
 
     system_prompt = (
-        "You are a 'Chat Session Analyzer' for a chat application.\n\n"
-        "You will receive a chat transcript.\n"
-        "Your tasks:\n"
-        "1) Read and understand the conversation.\n"
-        "2) In THAI, summarize what this chat is about (topics, intent, conclusions).\n"
-        "3) Create a short Thai title (5–12 words).\n"
-        "4) Generate 3–8 Thai topics (keywords).\n"
-        "5) Prepare a JSON object `opensearch_doc` with:\n"
-        "   - id: (use provided chat_id)\n"
-        "   - user_email: string (or null)\n"
-        "   - title: string\n"
-        "   - summary: string (The summary text)\n"
-        "   - topics: [string]\n"
-        "   - message_count: int\n"
-        "   - first_message_at: ISO string\n"
-        "   - last_message_at: ISO string\n"
-        "IMPORTANT RULES:\n"
-        "- All text values (title, summary, topics) MUST be in Thai.\n"
-        "- Output MUST be valid JSON only.\n"
+        "คุณคือระบบวิเคราะห์แชทภาษาไทย\n"
+        "- สรุปเนื้อหาของแชทเป็นภาษาไทย กระชับ ชัดเจน\n"
+        "- ตั้งชื่อเรื่อง (title) 5–12 คำ\n"
+        "- แตกหัวข้อ (topics) 3–8 คำ\n"
+        "- ตอบกลับเป็น JSON เท่านั้น เช่น:\n"
+        "{\n"
+        "  \"title\": \"...\",\n"
+        "  \"summary\": \"...\",\n"
+        "  \"topics\": [\"...\", \"...\"],\n"
+        "  \"opensearch_doc\": {\n"
+        "       \"id\": \"...\",\n"
+        "       \"user_email\": \"...\",\n"
+        "       \"title\": \"...\",\n"
+        "       \"summary\": \"...\",\n"
+        "       \"topics\": [\"...\"],\n"
+        "       \"message_count\": 10,\n"
+        "       \"first_message_at\": \"...\",\n"
+        "       \"last_message_at\": \"...\"\n"
+        "   }\n"
+        "}"
     )
 
-    user_prompt = f"Chat ID: {chat_id}\nUser Email: {user_email}\n\nTranscript:\n{conversation_text}"
+    payload = {
+        "model": SUMMARY_MODEL,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": conversation_text},
+        ],
+        "response_format": {"type": "json_object"},
+        "max_tokens": 800
+    }
 
-    user_prompt = f"Chat ID: {chat_id}\nUser Email: {user_email}\n\nTranscript:\n{conversation_text}"
+    # ยิงครั้งเดียวพอ
+    try:
+        async with httpx.AsyncClient(timeout=60) as client:
+            r = await client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json=payload
+            )
 
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            async with httpx.AsyncClient(timeout=60) as client:
-                response = await client.post(
-                    "https://openrouter.ai/api/v1/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {api_key}",
-                        "Content-Type": "application/json",
-                        "HTTP-Referer": "https://og-extractor-zxkk.onrender.com",
-                        "X-Title": "FastAPI Chat Analyzer",
-                    },
-                    json={
-                        "model": model,
-                        "messages": [
-                            {"role": "system", "content": system_prompt},
-                            {"role": "user", "content": user_prompt},
-                        ],
-                        "response_format": {"type": "json_object"}
-                    },
-                )
+        if r.status_code != 200:
+            return {"success": False, "error": r.text}
 
-                # ⚠️ Handle Rate Limit (429)
-                if response.status_code == 429:
-                    print(f"Rate limited (429). Retrying {attempt + 1}/{max_retries}...")
-                    if attempt < max_retries - 1:
-                        await asyncio.sleep(5 * (attempt + 1)) # Backoff: 5s, 10s, 15s
-                        continue
-                    else:
-                         return {"success": False, "error": f"Rate limit exceeded after {max_retries} attempts."}
+        data = r.json()
+        content = data["choices"][0]["message"]["content"]
 
-                if response.status_code != 200:
-                    print(f"Analysis failed: {response.text}")
-                    return {"success": False, "error": response.text}
+        parsed = json.loads(content)
 
-                data = response.json()
-                if "choices" in data and data["choices"]:
-                    content = data["choices"][0]["message"]["content"]
-                    
-                    try:
-                        parsed_data = json.loads(content)
-                        
-                        # 🟢 FORCE STRUCTURE UPDATE if missing
-                        if "opensearch_doc" not in parsed_data:
-                            # Fallback heuristic
-                            parsed_data["opensearch_doc"] = {
-                                "id": chat_id,
-                                "user_email": user_email,
-                                "title": parsed_data.get("title", "No Title"),
-                                "summary": parsed_data.get("summary", ""),
-                                "topics": parsed_data.get("topics", []),
-                                "message_count": len(messages),
-                                "first_message_at": first_iso or last_iso,
-                                "last_message_at": last_iso
-                            }
-                        else:
-                            # Ensure fields exist
-                            doc = parsed_data["opensearch_doc"]
-                            doc["id"] = chat_id
-                            doc["user_email"] = user_email
-                            doc["message_count"] = len(messages)
-                            doc["last_message_at"] = last_iso
-                            # Keep existing first_at if possible or use current
-                            if "first_message_at" not in doc:
-                                doc["first_message_at"] = first_iso or last_iso
+        # บังคับใส่ข้อมูล essential
+        doc = parsed.get("opensearch_doc", {})
+        doc["id"] = chat_id
+        doc["user_email"] = user_email
+        doc["message_count"] = len(messages)
+        doc["first_message_at"] = datetime.utcnow().isoformat()
+        doc["last_message_at"] = datetime.utcnow().isoformat()
 
-                        print(f"Indexing chat {chat_id} to OpenSearch...")
-                        
-                        final_payload = {
-                            "index": "chat_summaries",
-                            "id": chat_id,
-                            "body": parsed_data["opensearch_doc"]
-                        }
-                        
-                        await index_chat_summary(final_payload)
-                        
-                        return {"success": True, "data": parsed_data}
-                    
-                    except json.JSONDecodeError:
-                        print("JSON Decode Error in Summary", content)
-                        return {"success": False, "error": "JSON Decode Error"}
+        parsed["opensearch_doc"] = doc
 
-                # If no choices, fall through to retry? or fail?
-                # Usually if 200 OK but no choices, it's weird. Fail.
-                return {"success": False, "error": "No content returned"}
+        # index
+        await index_chat_summary({
+            "index": "chat_summaries",
+            "id": chat_id,
+            "body": doc
+        })
 
-        except Exception as e:
-            print(f"Analysis error (Attempt {attempt+1}): {str(e)}")
-            if attempt < max_retries - 1:
-                await asyncio.sleep(2)
-                continue
-            return {"success": False, "error": str(e)}
+        return {"success": True, "data": parsed}
 
-    return {"success": False, "error": "Max retries exceeded"}
-
-
-@app.post("/chat/summary")
-async def summarize_chat_session(
-    request: AnalyzeRequest,
-    creds: Optional[HTTPAuthorizationCredentials] = Depends(security),
-):
-    api_key = resolve_openrouter_key(creds)
-    return await _analyze_chat_logic(request.chat_id, request.messages, api_key, request.user_email)
-
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 # ==============================
-# 7) NEW: Simple Summary API สำหรับปุ่มสรุปใน UI
+# 7) NEW: Simple Summary API (Optimized for FREE MODEL)
 # ==============================
 
 class SimpleSummaryRequest(BaseModel):
@@ -851,14 +793,19 @@ async def summarize_simple(
     creds: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """
-    ใช้สำหรับปุ่มสรุปในหน้าเว็บ:
-    รับ { chat_id, messages } แล้วตอบกลับเป็น { summary: "..." }
+    ปุ่มสรุปใน UI → ใช้โมเดลเบาฟรี และสรุปเฉพาะ 30 ข้อความล่าสุด
+    ลดโอกาสโดน 429 ลงเยอะมาก
     """
     api_key = resolve_openrouter_key(creds)
 
-    # แปลง messages เป็น text ย่อย ๆ
+    SUMMARY_MODEL = "google/gemma-3-4b-it:free"   # ✔ เบา ✔ ฟรี ✔ เร็ว ✔ รอด 429 มากขึ้น
+
+    # ดึงแค่ 30 ข้อความล่าสุด (ถ้าจะลดอีก ปรับเป็น 20 ก็ได้)
+    recent_messages = request.messages[-30:]
+
+    # แปลงข้อความเป็น plain text
     conversation_text = ""
-    for msg in request.messages:
+    for msg in recent_messages:
         role = msg.get("role", "user")
         content = msg.get("content", "")
         role_th = "ผู้ใช้" if role == "user" else "ผู้ช่วย"
@@ -866,19 +813,18 @@ async def summarize_simple(
 
     system_prompt = (
         "คุณเป็นระบบสรุปบทสนทนาภาษาไทยแบบสั้น ๆ.\n"
-        "คุณมีความจำดีมาก สามารถจำรายละเอียดของบทสนทนาได้ทั้งหมด\n"
-        "- งานของคุณคือ อ่านแชททั้งหมด แล้วสรุปว่าในแชทนี้เขาคุยเรื่องอะไรเป็นหลัก\n"
-        "- ให้ตอบเป็นภาษาไทย 2–4 ประโยค สั้น กระชับ แต่ชัดเจน\n"
-        "- ห้ามใส่คำอธิบายส่วนเกิน เช่น \"สรุปแล้ว\", \"จากบทสนทนา\" ฯลฯ\n"
-        "- ให้ตอบเฉพาะข้อความสรุปอย่างเดียวเท่านั้น"
+        "- สรุปเนื้อหาเป็นภาษาไทย 2–4 ประโยค\n"
+        "- ห้ามเขียนเกินความจำเป็น ห้ามใส่คำว่า 'สรุป', 'จากบทสนทนา'\n"
+        "- ตอบเฉพาะเนื้อหาสรุปเท่านั้น"
     )
 
     payload = {
-        "model": "google/gemma-3-27b-it:free",
+        "model": SUMMARY_MODEL,
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": conversation_text},
         ],
+        "max_tokens": 300
     }
 
     try:
@@ -899,15 +845,13 @@ async def summarize_simple(
             raise HTTPException(status_code=r.status_code, detail="Summary failed")
 
         data = r.json()
-        if "choices" in data and data["choices"]:
-            summary_text = data["choices"][0]["message"]["content"].strip()
-            return {"summary": summary_text}
-
-        raise HTTPException(status_code=500, detail="No summary returned")
+        summary_text = data["choices"][0]["message"]["content"].strip()
+        return {"summary": summary_text}
 
     except Exception as e:
         print("Simple summary exception:", str(e))
         raise HTTPException(status_code=500, detail=str(e))
+
 
 
 # ==============================
