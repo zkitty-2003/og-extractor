@@ -490,14 +490,7 @@ async def chat_with_ai(
 
     messages = request.history or []
 
-    system_prompt = {
-        "role": "system",
-        "content": (
-            "You are ABDUL, a helpful AI assistant. "
-            "You must remember the context of the conversation, "
-            "including the user's name and previous messages. "
-            "Always answer in Thai unless asked otherwise. "
-    # messages = request.history or [] # Original line
+    messages = request.history or []
 
     system_prompt_content = (
         "You are ABDUL, a helpful AI assistant. "
