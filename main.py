@@ -553,9 +553,7 @@ async def chat_with_ai(
                     if "image_url" in img and "url" in img["image_url"]:
                         images.append(img["image_url"]["url"])
 
-                "model": data.get("model"),
-            },
-        }
+
 
         # 🟢 BACKGROUND TASK: Auto-Index / Summarize Chat
         if request.chat_id:
@@ -589,6 +587,7 @@ async def chat_with_ai(
 # 6) Analyze Chat API (Updated with OpenSearch)
 # ==============================
 
+class AnalyzeRequest(BaseModel):
     chat_id: str
     messages: List[Dict[str, Any]]
 
