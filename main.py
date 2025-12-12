@@ -637,7 +637,7 @@ async def _analyze_chat_logic(
     - ใช้โมเดล free ขนาด 4B
     - ใช้ข้อความล่าสุดไม่เกิน 50 ข้อความ
     """
-    SUMMARY_MODEL = "google/gemma-3-4b-it:free"
+    SUMMARY_MODEL = "meta-llama/llama-3.2-1b-instruct:free"
     MAX_MSG = 50
 
     trimmed: List[Dict[str, Any]] = []
@@ -768,7 +768,7 @@ async def summarize_simple(
     """
     api_key = resolve_openrouter_key(creds)
 
-    SUMMARY_MODEL = "google/gemma-3-4b-it:free"
+   SUMMARY_MODEL = "meta-llama/llama-3.2-1b-instruct:free"
     MAX_MSG = 30
 
     # ดึงแค่ 30 ข้อความล่าสุด
