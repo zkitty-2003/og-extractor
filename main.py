@@ -769,7 +769,7 @@ async def summarize_simple(
     """
     api_key = resolve_openrouter_key(creds)
 
-    SUMMARY_MODEL = "meta-llama/llama-3.2-1b-instruct:free"
+    SUMMARY_MODEL = "google/gemma-3-27b-it:free"
     MAX_MSG = 30
 
     # ดึงแค่ 30 ข้อความล่าสุด
