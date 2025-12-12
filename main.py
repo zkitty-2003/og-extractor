@@ -12,6 +12,7 @@ import httpx
 import os
 import uuid
 import json
+import asyncio
 
 # OpenSearch
 from opensearchpy import AsyncOpenSearch
@@ -695,86 +696,102 @@ async def _analyze_chat_logic(chat_id: str, messages: List[Dict[str, Any]], api_
 
     user_prompt = f"Chat ID: {chat_id}\nUser Email: {user_email}\n\nTranscript:\n{conversation_text}"
 
-    try:
-        async with httpx.AsyncClient(timeout=60) as client:
-            response = await client.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                    "HTTP-Referer": "https://og-extractor-zxkk.onrender.com",
-                    "X-Title": "FastAPI Chat Analyzer",
-                },
-                json={
-                    "model": model,
-                    "messages": [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt},
-                    ],
-                    "response_format": {"type": "json_object"}
-                },
-            )
+    user_prompt = f"Chat ID: {chat_id}\nUser Email: {user_email}\n\nTranscript:\n{conversation_text}"
 
-            if response.status_code != 200:
-                print(f"Analysis failed: {response.text}")
-                return {"success": False, "error": response.text}
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            async with httpx.AsyncClient(timeout=60) as client:
+                response = await client.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                        "HTTP-Referer": "https://og-extractor-zxkk.onrender.com",
+                        "X-Title": "FastAPI Chat Analyzer",
+                    },
+                    json={
+                        "model": model,
+                        "messages": [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_prompt},
+                        ],
+                        "response_format": {"type": "json_object"}
+                    },
+                )
 
-            data = response.json()
-            if "choices" in data and data["choices"]:
-                content = data["choices"][0]["message"]["content"]
-                
-                try:
-                    parsed_data = json.loads(content)
-                    
-                    # 🟢 FORCE STRUCTURE UPDATE if missing
-                    if "opensearch_doc" not in parsed_data:
-                        # Fallback heuristic
-                        parsed_data["opensearch_doc"] = {
-                            "id": chat_id,
-                            "user_email": user_email,
-                            "title": parsed_data.get("title", "No Title"),
-                            "summary": parsed_data.get("summary", ""),
-                            "topics": parsed_data.get("topics", []),
-                            "message_count": len(messages),
-                            "first_message_at": first_iso or last_iso,
-                            "last_message_at": last_iso
-                        }
+                # ⚠️ Handle Rate Limit (429)
+                if response.status_code == 429:
+                    print(f"Rate limited (429). Retrying {attempt + 1}/{max_retries}...")
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(2 * (attempt + 1)) # Backoff: 2s, 4s, 6s
+                        continue
                     else:
-                        # Ensure fields exist
-                        doc = parsed_data["opensearch_doc"]
-                        doc["id"] = chat_id
-                        doc["user_email"] = user_email
-                        doc["message_count"] = len(messages)
-                        doc["last_message_at"] = last_iso
-                        # Keep existing first_at if possible or use current
-                        if "first_message_at" not in doc:
-                            doc["first_message_at"] = first_iso or last_iso
+                         return {"success": False, "error": f"Rate limit exceeded after {max_retries} attempts."}
 
-                    print(f"Indexing chat {chat_id} to OpenSearch...")
-                    
-                    # Construct valid OpenSearch payload wrapper if needed by index_chat_summary
-                    # index_chat_summary expects {"index":..., "id":..., "body":...} 
-                    # OR just the body? 
-                    # checking index_chat_summary implementation:
-                    # It expects 'doc' dict with keys 'index', 'id', 'body'.
-                    
-                    final_payload = {
-                        "index": "chat_summaries",
-                        "id": chat_id,
-                        "body": parsed_data["opensearch_doc"]
-                    }
-                    
-                    await index_chat_summary(final_payload)
-                    
-                    return {"success": True, "data": parsed_data}
-                
-                except json.JSONDecodeError:
-                    print("JSON Decode Error in Summary", content)
-                    return {"success": False, "error": "JSON Decode Error"}
+                if response.status_code != 200:
+                    print(f"Analysis failed: {response.text}")
+                    return {"success": False, "error": response.text}
 
-    except Exception as e:
-        print(f"Analysis error: {str(e)}")
-        return {"success": False, "error": str(e)}
+                data = response.json()
+                if "choices" in data and data["choices"]:
+                    content = data["choices"][0]["message"]["content"]
+                    
+                    try:
+                        parsed_data = json.loads(content)
+                        
+                        # 🟢 FORCE STRUCTURE UPDATE if missing
+                        if "opensearch_doc" not in parsed_data:
+                            # Fallback heuristic
+                            parsed_data["opensearch_doc"] = {
+                                "id": chat_id,
+                                "user_email": user_email,
+                                "title": parsed_data.get("title", "No Title"),
+                                "summary": parsed_data.get("summary", ""),
+                                "topics": parsed_data.get("topics", []),
+                                "message_count": len(messages),
+                                "first_message_at": first_iso or last_iso,
+                                "last_message_at": last_iso
+                            }
+                        else:
+                            # Ensure fields exist
+                            doc = parsed_data["opensearch_doc"]
+                            doc["id"] = chat_id
+                            doc["user_email"] = user_email
+                            doc["message_count"] = len(messages)
+                            doc["last_message_at"] = last_iso
+                            # Keep existing first_at if possible or use current
+                            if "first_message_at" not in doc:
+                                doc["first_message_at"] = first_iso or last_iso
+
+                        print(f"Indexing chat {chat_id} to OpenSearch...")
+                        
+                        final_payload = {
+                            "index": "chat_summaries",
+                            "id": chat_id,
+                            "body": parsed_data["opensearch_doc"]
+                        }
+                        
+                        await index_chat_summary(final_payload)
+                        
+                        return {"success": True, "data": parsed_data}
+                    
+                    except json.JSONDecodeError:
+                        print("JSON Decode Error in Summary", content)
+                        return {"success": False, "error": "JSON Decode Error"}
+
+                # If no choices, fall through to retry? or fail?
+                # Usually if 200 OK but no choices, it's weird. Fail.
+                return {"success": False, "error": "No content returned"}
+
+        except Exception as e:
+            print(f"Analysis error (Attempt {attempt+1}): {str(e)}")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(2)
+                continue
+            return {"success": False, "error": str(e)}
+
+    return {"success": False, "error": "Max retries exceeded"}
 
 
 @app.post("/chat/summary")
