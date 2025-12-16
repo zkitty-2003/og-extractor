@@ -61,11 +61,49 @@ async def startup_event():
                 verify_certs=True,
                 ssl_show_warn=False,
             )
-            print("OpenSearch client initialized successfully.")
+            if await opensearch_client.ping():
+                print("OpenSearch client initialized successfully.")
+                await init_opensearch_index()
+            else:
+                print("OpenSearch client initialized but ping failed.")
         except Exception as e:
             print(f"Failed to initialize OpenSearch client: {e}")
     else:
         print("OpenSearch credentials not found in env. Indexing will be disabled.")
+
+
+async def init_opensearch_index():
+    """Initialize the chat_summaries index with proper mapping if it doesn't exist."""
+    index_name = "chat_summaries"
+    if not opensearch_client:
+        return
+
+    mapping = {
+        "mappings": {
+            "properties": {
+                "id": {"type": "keyword"},
+                "user_email": {"type": "keyword"},
+                "title": {
+                    "type": "text",
+                    "fields": {"keyword": {"type": "keyword"}}
+                },
+                "summary": {"type": "text"},
+                "topics": {"type": "keyword"},
+                "message_count": {"type": "integer"},
+                "last_message_at": {"type": "date"}
+            }
+        }
+    }
+
+    try:
+        exists = await opensearch_client.indices.exists(index=index_name)
+        if not exists:
+            await opensearch_client.indices.create(index=index_name, body=mapping)
+            print(f"Index '{index_name}' created with mapping.")
+        else:
+            print(f"Index '{index_name}' already exists.")
+    except Exception as e:
+        print(f"Error initializing index '{index_name}': {e}")
 
 
 @app.on_event("shutdown")
@@ -462,11 +500,11 @@ async def chat_with_ai(
     creds: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """
-    Main Chat Endpoint (Standard)
+    Main Chat Endpoint (Standard) with Long-term Memory Injection
     """
     api_key = resolve_openrouter_key(creds)
 
-    # 1. Translate if needed (Logic remains samte)
+    # 1. Translate if needed (Logic remains same)
     if is_image_generation_prompt(request.message):
         print(f"Detected image prompt: {request.message}")
         text_to_translate = request.message.strip()
@@ -490,26 +528,34 @@ async def chat_with_ai(
         except Exception as e:
              return {"success": False, "error": str(e)}
 
-    # 2. Prepare Messages
+    # 2. Prepare Memory & System Prompt
+    system_content = (
+        "You are ABDUL, a helpful AI assistant. "
+        "Always answer in Thai unless asked otherwise. "
+        "Do NOT use Romanized Thai."
+    )
+
+    # Inject Memory if User is Known
+    if request.user_email:
+        memory_context = await search_user_memory(request.user_email)
+        if memory_context:
+            print(f"Injecting memory for {request.user_email}")
+            system_content += f"\n\n[Long-term memory from previous chats]:\n{memory_context}"
+
+    # 3. Construct Messages
     messages = request.history or []
     
-    # Simple System Prompt
-    system_prompt = {
-        "role": "system",
-        "content": (
-            "You are ABDUL, a helpful AI assistant. "
-            "Always answer in Thai unless asked otherwise. "
-            "Do NOT use Romanized Thai."
-        )
-    }
-    
-    # Insert system prompt at start
+    # Ensure system prompt is first and correctly set
     if not messages or messages[0].get("role") != "system":
-        messages.insert(0, system_prompt)
+        messages.insert(0, {"role": "system", "content": system_content})
+    else:
+        # If system prompt exists, update it or append memory if not present?
+        # Better to force our trusted system prompt structure
+        messages[0]["content"] = system_content
 
     messages.append({"role": "user", "content": request.message})
 
-    # 3. Call AI
+    # 4. Call AI
     payload = {
         "model": request.model,
         "messages": messages,
@@ -535,7 +581,7 @@ async def chat_with_ai(
         data = response.json()
         ai_message = data["choices"][0]["message"]["content"]
 
-        # 4. Background Task (Simple Update)
+        # 5. Background Task (Simple Update)
         if request.chat_id:
             full_history = messages + [{"role": "assistant", "content": ai_message}]
             background_tasks.add_task(
