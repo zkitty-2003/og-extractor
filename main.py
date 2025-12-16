@@ -440,7 +440,7 @@ async def translate_text(
 
 class ChatRequest(BaseModel):
     message: str
-    model: Optional[str] = "google/gemma-3-27b-it:free"
+    model: Optional[str] = "google/gemini-flash-1.5"
     history: Optional[List[Dict[str, Any]]] = None
     chat_id: Optional[str] = None
     user_email: Optional[str] = None
@@ -580,11 +580,12 @@ async def _analyze_chat_logic(
     """
     # List of models to try in order
     SUMMARY_MODELS = [
+        "google/gemini-flash-1.5",
         "google/gemini-2.0-flash-exp:free",
-        "google/gemini-exp-1206:free",
-        "meta-llama/llama-3-8b-instruct:free",
-        "microsoft/phi-3-mini-128k-instruct:free",
-        "google/gemma-2-9b-it:free",
+        "google/gemini-2.0-flash-thinking-exp:free",
+        "huggingfaceh4/zephyr-7b-beta:free",
+        "mistralai/mistral-7b-instruct:free",
+        "qwen/qwen-2-7b-instruct:free",
     ]
 
     # Use last 40 messages to be safe
@@ -710,11 +711,12 @@ async def summarize_simple(
     
     # Same list of models as analyzer
     SUMMARY_MODELS = [
+        "google/gemini-flash-1.5",
         "google/gemini-2.0-flash-exp:free",
-        "google/gemini-exp-1206:free",
-        "meta-llama/llama-3-8b-instruct:free",
-        "microsoft/phi-3-mini-128k-instruct:free",
-        "google/gemma-2-9b-it:free",
+        "google/gemini-2.0-flash-thinking-exp:free",
+        "huggingfaceh4/zephyr-7b-beta:free",
+        "mistralai/mistral-7b-instruct:free",
+        "qwen/qwen-2-7b-instruct:free",
     ]
 
     conversation_text = ""
