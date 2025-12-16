@@ -467,9 +467,15 @@ function renderMessageToUI(text, sender, id = null, images = []) {
 
     const avatar = document.createElement('div');
     avatar.classList.add('avatar');
-    avatar.textContent = sender === 'user' ? 'U' : 'A';
-    if (sender === 'user' && currentUser) {
-        avatar.innerHTML = `<img src="${currentUser.picture}" style="width:100%;height:100%;border-radius:50%;">`;
+
+    if (sender === 'user') {
+        avatar.textContent = 'U';
+        if (currentUser) {
+            avatar.innerHTML = `<img src="${currentUser.picture}" style="width:100%;height:100%;border-radius:50%;">`;
+        }
+    } else {
+        // AI Avatar (Cat)
+        avatar.innerHTML = `<img src="/static/cat_avatar.png" alt="AI" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`;
     }
 
     const bubble = document.createElement('div');
@@ -755,7 +761,7 @@ function startNewChat() {
         const welcomeDiv = document.createElement('div');
         welcomeDiv.className = 'message ai-message welcome-message';
         welcomeDiv.innerHTML = `
-            <div class="avatar">A</div>
+            <div class="avatar"><img src="/static/cat_avatar.png" alt="AI" style="width:100%;height:100%;border-radius:50%;object-fit:cover;"></div>
             <div class="bubble">
                 <div class="content">
                     สวัสดีครับ มีอะไรให้พี่ช่วยไหม
