@@ -576,9 +576,16 @@ async def _analyze_chat_logic(
     user_email: Optional[str] = None,
 ):
     """
-    Stabilized Analyzer using Gemma 2 9b (Solid choice)
+    Stabilized Analyzer with Multi-Model Fallback
     """
-    SUMMARY_MODEL = "google/gemini-2.0-flash-exp:free"
+    # List of models to try in order
+    SUMMARY_MODELS = [
+        "google/gemini-2.0-flash-exp:free",
+        "google/gemini-exp-1206:free",
+        "meta-llama/llama-3-8b-instruct:free",
+        "microsoft/phi-3-mini-128k-instruct:free",
+        "google/gemma-2-9b-it:free",
+    ]
 
     # Use last 40 messages to be safe
     MAX_MSG = 40
@@ -597,57 +604,77 @@ async def _analyze_chat_logic(
         "- ตอบเป็น JSON: { title, summary, topics, opensearch_doc: {...} }"
     )
 
-    payload = {
-        "model": SUMMARY_MODEL,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": conversation_text},
-        ],
-        "response_format": {"type": "json_object"},
-        "max_tokens": 800,
-    }
+    errors = []
 
-    try:
-        async with httpx.AsyncClient(timeout=60) as client:
-            r = await client.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "HTTP-Referer": "https://og-extractor-zxkk.onrender.com",
-                    "X-Title": "FastAPI Analyzer",
-                },
-                json=payload,
-            )
+    async with httpx.AsyncClient(timeout=60) as client:
+        for model in SUMMARY_MODELS:
+            print(f"Analyzing chat with model: {model}")
+            payload = {
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": conversation_text},
+                ],
+                "response_format": {"type": "json_object"},
+                "max_tokens": 1000,
+            }
 
-        if r.status_code != 200:
-             return {"success": False, "error": r.text}
+            try:
+                r = await client.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "HTTP-Referer": "https://og-extractor-zxkk.onrender.com",
+                        "X-Title": "FastAPI Analyzer",
+                    },
+                    json=payload,
+                )
 
-        data = r.json()
-        content = data["choices"][0]["message"]["content"]
-        parsed = json.loads(content)
+                if r.status_code == 200:
+                    data = r.json()
+                    if "choices" in data and data["choices"]:
+                        content = data["choices"][0]["message"]["content"]
+                        try:
+                            parsed = json.loads(content)
+                            
+                            # Standard OpenSearch Doc Prep
+                            doc = parsed.get("opensearch_doc", {})
+                            now_iso = datetime.utcnow().isoformat()
+                            doc["id"] = chat_id
+                            doc["user_email"] = user_email
+                            doc["title"] = parsed.get("title", "No Title")
+                            doc["summary"] = parsed.get("summary", "")
+                            doc["topics"] = parsed.get("topics", [])
+                            doc["last_message_at"] = now_iso
+                            
+                            parsed["opensearch_doc"] = doc
 
-        # Standard OpenSearch Doc Prep
-        doc = parsed.get("opensearch_doc", {})
-        now_iso = datetime.utcnow().isoformat()
-        doc["id"] = chat_id
-        doc["user_email"] = user_email
-        doc["title"] = parsed.get("title", "No Title")
-        doc["summary"] = parsed.get("summary", "")
-        doc["topics"] = parsed.get("topics", [])
-        doc["last_message_at"] = now_iso
-        
-        parsed["opensearch_doc"] = doc
+                            await index_chat_summary({
+                                "index": "chat_summaries", 
+                                "id": chat_id, 
+                                "body": doc
+                            })
 
-        await index_chat_summary({
-            "index": "chat_summaries", 
-            "id": chat_id, 
-            "body": doc
-        })
+                            return {"success": True, "data": parsed}
+                        except json.JSONDecodeError:
+                            print(f"Model {model} returned invalid JSON.")
+                            errors.append(f"{model}: Invalid JSON")
+                            continue
+                else:
+                    error_msg = f"{model}: {r.status_code} - {r.text[:100]}"
+                    print(error_msg)
+                    errors.append(error_msg)
+                    # If 429, wait a bit before next model (optional, but good practice)
+                    if r.status_code == 429:
+                        await asyncio.sleep(1)
 
-        return {"success": True, "data": parsed}
+            except Exception as e:
+                error_msg = f"{model} error: {str(e)}"
+                print(error_msg)
+                errors.append(error_msg)
+                continue
 
-    except Exception as e:
-        return {"success": False, "error": str(e)}
+    return {"success": False, "error": f"All models failed. Details: {errors}"}
 
 
 @app.post("/chat/summary")
@@ -677,11 +704,18 @@ async def summarize_simple(
     creds: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """
-    Restored Simple Summary
-    Also uses Gemma 2 9b for stability
+    Restored Simple Summary with Multi-Model Fallback
     """
     api_key = resolve_openrouter_key(creds)
-    SUMMARY_MODEL = "google/gemini-2.0-flash-exp:free"
+    
+    # Same list of models as analyzer
+    SUMMARY_MODELS = [
+        "google/gemini-2.0-flash-exp:free",
+        "google/gemini-exp-1206:free",
+        "meta-llama/llama-3-8b-instruct:free",
+        "microsoft/phi-3-mini-128k-instruct:free",
+        "google/gemma-2-9b-it:free",
+    ]
 
     conversation_text = ""
     for msg in request.messages[-30:]:
@@ -689,52 +723,66 @@ async def summarize_simple(
         content = msg.get("content", "")
         conversation_text += f"{role}: {content}\n"
 
-    # Retry Logic (Keep this, it's useful)
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            async with httpx.AsyncClient(timeout=60) as client:
+    last_error = ""
+
+    async with httpx.AsyncClient(timeout=60) as client:
+        for model in SUMMARY_MODELS:
+            try:
+                # Retry loop per model (optional, but good for transient 429s on a specific model)
+                # But since we have many models, maybe just try once per model is faster?
+                # Let's simple try once per model to avoid waiting too long if one is rate limited.
+                
+                print(f"Simple summary with model: {model}")
                 r = await client.post(
                     "https://openrouter.ai/api/v1/chat/completions",
-                    headers={"Authorization": f"Bearer {api_key}"},
+                    headers={
+                        "Authorization": f"Bearer {api_key}", 
+                        "HTTP-Referer": "https://og-extractor-zxkk.onrender.com",
+                        "X-Title": "FastAPI Simple Summary"
+                    },
                     json={
-                        "model": SUMMARY_MODEL,
+                        "model": model,
                         "messages": [
                             {"role": "system", "content": "Summarize this chat in Thai (2-3 sentences)."},
                             {"role": "user", "content": conversation_text}
                         ]
                     }
                 )
-            
-            if r.status_code == 429:
-                await asyncio.sleep(3 * (attempt + 1))
-                continue
                 
-            if r.status_code == 200:
-                data = r.json()
-                summary = data["choices"][0]["message"]["content"]
-                
-                # Auto-save minimal doc
-                await index_chat_summary({
-                    "index": "chat_summaries",
-                    "id": request.chat_id,
-                    "body": {
+                if r.status_code == 200:
+                    data = r.json()
+                    summary = data["choices"][0]["message"]["content"]
+                    
+                    # Auto-save minimal doc
+                    await index_chat_summary({
+                        "index": "chat_summaries",
                         "id": request.chat_id,
-                        "user_email": request.user_email,
-                        "summary": summary,
-                        "last_message_at": datetime.utcnow().isoformat()
+                        "body": {
+                            "id": request.chat_id,
+                            "user_email": request.user_email,
+                            "summary": summary,
+                            "last_message_at": datetime.utcnow().isoformat()  
+                        }
+                    })
+                    
+                    return {
+                        "success": True, 
+                        "data": {"summary": summary}
                     }
-                })
-                
-                return {
-                    "success": True, 
-                    "data": {"summary": summary}
-                }
-                
-        except Exception:
-            await asyncio.sleep(2)
+                elif r.status_code == 429:
+                    print(f"Model {model} rate limited (429). Trying next...")
+                    last_error = f"{model} 429"
+                    await asyncio.sleep(0.5) 
+                else:
+                    print(f"Model {model} failed: {r.status_code}")
+                    last_error = f"{model} {r.status_code}"
+
+            except Exception as e:
+                print(f"Model {model} exception: {e}")
+                last_error = str(e)
+                continue
             
-    return {"success": False, "error": "Summary failed after retries"}
+    return {"success": False, "error": f"Summary failed after trying all models. Last error: {last_error}"}
 
 # ==============================
 # Uvicorn entrypoint
