@@ -387,7 +387,7 @@ async def _translate_logic(text: str, api_key: str) -> Tuple[str, List[str]]:
     โดยใช้โมเดลฟรีที่เบาลง: google/gemma-3-4b-it:free
     """
     models = [
-        "google/gemma-3-4b-it:free",
+        "google/gemini-1.5-flash",
     ]
 
     errors: List[str] = []
