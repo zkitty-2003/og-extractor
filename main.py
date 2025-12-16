@@ -578,7 +578,7 @@ async def _analyze_chat_logic(
     """
     Stabilized Analyzer using Gemma 2 9b (Solid choice)
     """
-    SUMMARY_MODEL = "google/gemma-2-9b-it:free"
+    SUMMARY_MODEL = "google/gemini-2.0-flash-exp:free"
 
     # Use last 40 messages to be safe
     MAX_MSG = 40
@@ -681,7 +681,7 @@ async def summarize_simple(
     Also uses Gemma 2 9b for stability
     """
     api_key = resolve_openrouter_key(creds)
-    SUMMARY_MODEL = "google/gemma-2-9b-it:free"
+    SUMMARY_MODEL = "google/gemini-2.0-flash-exp:free"
 
     conversation_text = ""
     for msg in request.messages[-30:]:
