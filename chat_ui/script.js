@@ -1,3 +1,6 @@
+// API Configuration
+const API_BASE_URL = 'http://localhost:10000'; // Backend API URL
+
 // Global state
 let currentUser = null;
 let chatHistory = []; // Current chat messages
@@ -171,7 +174,7 @@ window.openLoginOverlay = function () {
 function handleCredentialResponse(response) {
     if (response.credential) {
         // Send token to backend
-        fetch('/auth/google', {
+        fetch(`${API_BASE_URL}/auth/google`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -268,11 +271,219 @@ function handleLogout() {
     location.reload();
 }
 
+// --- OpenRouter Settings Logic ---
+let openRouterModels = [];
+let selectedModel = localStorage.getItem('openrouter_model') || '';
+
+function renderOpenRouterSettings() {
+    const container = document.getElementById('settings-container-mount');
+    if (!container) return;
+
+    const currentKey = apiKey; // Global apiKey variable
+    const isLoading = container.dataset.loading === 'true';
+    const statusMsg = container.dataset.status || '';
+    const statusType = container.dataset.statusType || 'default';
+
+    // Filter models
+    const searchTerm = (container.dataset.search || '').toLowerCase();
+    const filteredModels = openRouterModels.filter(m =>
+        m.id.toLowerCase().includes(searchTerm) ||
+        (m.name && m.name.toLowerCase().includes(searchTerm))
+    );
+
+    let modelsHtml = '';
+    if (openRouterModels.length > 0) {
+        modelsHtml = `
+            <div class="models-container">
+                <div class="form-group">
+                    <label class="form-label">Select Model</label>
+                    <div class="input-with-icon" style="margin-bottom: 10px;">
+                        <i class="fas fa-search input-icon-left"></i>
+                        <input type="text" id="model-search" class="settings-input with-left-icon" 
+                               placeholder="Filter models..." value="${escapeHtml(searchTerm)}">
+                    </div>
+                    <select id="model-select" class="settings-input" style="cursor: pointer;">
+                        <option value="">-- Choose a Model --</option>
+                        ${filteredModels.map(m => `
+                            <option value="${m.id}" ${m.id === selectedModel ? 'selected' : ''}>
+                                ${m.id} (${m.pricing?.prompt === "0" ? 'Free' : 'Paid'})
+                            </option>
+                        `).join('')}
+                    </select>
+                </div>
+            </div>
+        `;
+    }
+
+    container.innerHTML = `
+        <div class="settings-card">
+            <div class="settings-header">
+                <h2><i class="fas fa-robot"></i> OpenRouter Settings</h2>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">API Key</label>
+                <div class="input-with-icon">
+                    <input type="password" id="or-api-key" class="settings-input" 
+                           placeholder="sk-or-..." value="${escapeHtml(currentKey)}">
+                    <button id="toggle-key-btn" class="toggle-visibility-btn">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </div>
+            </div>
+
+            <button id="fetch-models-btn" class="action-btn btn-secondary" ${!currentKey ? 'disabled' : ''}>
+                ${isLoading ? '<i class="fas fa-circle-notch fa-spin"></i> Loading...' : '<i class="fas fa-sync-alt"></i> Load Models'}
+            </button>
+
+            ${modelsHtml}
+
+            <div style="display: flex; gap: 15px; margin-top: 25px;">
+                <button id="save-settings-btn" class="action-btn btn-primary">
+                    <i class="fas fa-save"></i> Save
+                </button>
+                <button id="clear-settings-btn" class="action-btn btn-danger" style="width: auto;">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
+            </div>
+
+            ${statusMsg ? `
+                <div style="text-align: center;">
+                    <div class="status-badge ${statusType === 'error' ? 'status-error' : 'status-success'}">
+                        <i class="fas ${statusType === 'error' ? 'fa-exclamation-circle' : 'fa-check-circle'}"></i>
+                        ${statusMsg}
+                    </div>
+                </div>
+            ` : ''}
+        </div>
+    `;
+
+    // Attach Events
+    document.getElementById('save-settings-btn').addEventListener('click', handleSaveSettings);
+    document.getElementById('clear-settings-btn').addEventListener('click', handleClearSettings);
+    document.getElementById('fetch-models-btn').addEventListener('click', () => fetchModels(document.getElementById('or-api-key').value));
+
+    const keyInput = document.getElementById('or-api-key');
+    keyInput.addEventListener('input', (e) => {
+        document.getElementById('fetch-models-btn').disabled = !e.target.value;
+    });
+
+    // Toggle Key Visibility
+    document.getElementById('toggle-key-btn').addEventListener('click', (e) => {
+        const type = keyInput.getAttribute('type') === 'password' ? 'text' : 'password';
+        keyInput.setAttribute('type', type);
+        e.currentTarget.innerHTML = `<i class="fas fa-eye${type === 'password' ? '' : '-slash'}"></i>`;
+    });
+
+    if (openRouterModels.length > 0) {
+        document.getElementById('model-search').addEventListener('input', (e) => {
+            container.dataset.search = e.target.value;
+            renderOpenRouterSettings(); // Re-render to filter
+            // Restore focus
+            const newInput = document.getElementById('model-search');
+            newInput.focus();
+            newInput.setSelectionRange(newInput.value.length, newInput.value.length);
+        });
+
+        document.getElementById('model-select').addEventListener('change', (e) => {
+            selectedModel = e.target.value;
+        });
+    }
+}
+
+function handleSaveSettings() {
+    const key = document.getElementById('or-api-key').value.trim();
+    if (!key) {
+        showStatus('Please enter an API Key', 'error');
+        return;
+    }
+
+    // Update Globals
+    apiKey = key;
+    const modelSelect = document.getElementById('model-select');
+    if (modelSelect) selectedModel = modelSelect.value;
+
+    // Persist
+    localStorage.setItem('openrouter_api_key', apiKey);
+    localStorage.setItem('openrouter_model', selectedModel);
+
+    showStatus('Settings saved!', 'success');
+
+    // Auto fetch if models missing
+    if (openRouterModels.length === 0) {
+        fetchModels(apiKey);
+    }
+}
+
+function handleClearSettings() {
+    localStorage.removeItem('openrouter_api_key');
+    localStorage.removeItem('openrouter_model');
+    apiKey = '';
+    selectedModel = '';
+    openRouterModels = [];
+
+    const container = document.getElementById('settings-container-mount');
+    container.dataset.search = '';
+
+    renderOpenRouterSettings();
+    showStatus('Settings cleared.', 'success');
+}
+
+function showStatus(msg, type) {
+    const container = document.getElementById('settings-container-mount');
+    container.dataset.status = msg;
+    container.dataset.statusType = type;
+    renderOpenRouterSettings();
+
+    setTimeout(() => {
+        container.dataset.status = '';
+        renderOpenRouterSettings();
+    }, 3000);
+}
+
+async function fetchModels(key) {
+    const container = document.getElementById('settings-container-mount');
+    container.dataset.loading = 'true';
+    renderOpenRouterSettings();
+
+    try {
+        const response = await fetch('https://openrouter.ai/api/v1/models', {
+            headers: {
+                'Authorization': `Bearer ${key}`,
+                'HTTP-Referer': window.location.origin
+            }
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            openRouterModels = data.data.sort((a, b) => a.id.localeCompare(b.id));
+            container.dataset.loading = 'false';
+            renderOpenRouterSettings();
+            showStatus('Models loaded successfully', 'success');
+        } else {
+            throw new Error('Failed to fetch models');
+        }
+    } catch (e) {
+        console.error(e);
+        container.dataset.loading = 'false';
+        showStatus('Failed to load models', 'error');
+        renderOpenRouterSettings();
+    }
+}
+
+// Hook into Login Open to Render Settings
+const originalOpenLoginOverlay = window.openLoginOverlay;
+window.openLoginOverlay = function () {
+    originalOpenLoginOverlay();
+    // Render settings after a slight delay to ensure DOM is ready/visible
+    setTimeout(renderOpenRouterSettings, 50);
+};
+
 // --- Chat History Logic ---
 const LAST_SESSION_KEY = 'last_session_summary';
 
 // 1) ฟังก์ชันจัดการ Memory ฝั่ง Client (localStorage)
-function saveLastSessionSummary(summaryObj) {
+async function saveLastSessionSummary(summaryObj) {
     if (!summaryObj) return;
     const data = {
         ...summaryObj,
@@ -280,6 +491,42 @@ function saveLastSessionSummary(summaryObj) {
     };
     localStorage.setItem(LAST_SESSION_KEY, JSON.stringify(data));
     console.log("บันทึกสรุปแชทล่าสุดลง LocalStorage แล้ว:", data);
+
+    // --- OpenSearch Logging for Summary ---
+    const OPENSEARCH_URL = "http://localhost:9200";
+    const AUTH_HEADER = "Basic " + btoa("username:password");
+
+    const payload = {
+        "@timestamp": new Date().toISOString(),
+        "doc_type": "summary",
+        "chat_id": summaryObj.chat_id || "unknown",
+        "user_id": currentUser ? currentUser.email : "guest",
+        "title": summaryObj.title,
+        "summary": summaryObj.summary,
+        "topics": summaryObj.topics,
+        "updated_at": data.updated_at
+    };
+
+    try {
+        // Saving to the same index 'ai-chat-logs' but with doc_type='summary'
+        // or you can change to 'ai-chat-summaries' if you prefer separate indices
+        const response = await fetch(`${OPENSEARCH_URL}/ai-chat-logs/_doc`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': AUTH_HEADER
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+            console.log("✅ Summary saved to OpenSearch");
+        } else {
+            console.error("❌ Failed to save summary to OpenSearch", await response.text());
+        }
+    } catch (error) {
+        console.error("Error logging summary to OpenSearch:", error);
+    }
 }
 
 function getLastSessionSummary() {
@@ -567,6 +814,43 @@ document.addEventListener('DOMContentLoaded', () => {
     window.toggleImageMode = toggleImageMode;
 });
 
+// --- OpenSearch Headers and Logging ---
+const logChatToOpenSearch = async (chatData) => {
+    // REPLACE WITH YOUR ACTUAL OPENSEARCH URL
+    const OPENSEARCH_URL = "http://localhost:9200";
+    const AUTH_HEADER = "Basic " + btoa("username:password");
+
+    const payload = {
+        "@timestamp": new Date().toISOString(),
+        "session_id": chatData.sessionId || "default_session",
+        "user_id": chatData.userId || "anonymous",
+        "model_name": chatData.modelName || "gpt-4",
+        "message": chatData.message,
+        "tokens_used": chatData.tokens || 0,
+        "latency_ms": chatData.latency || 0
+    };
+
+    try {
+        const response = await fetch(`${OPENSEARCH_URL}/ai-chat-logs/_doc`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': AUTH_HEADER
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+            console.log("✅ Log saved to OpenSearch");
+        } else {
+            console.error("❌ Failed to save log", await response.text());
+        }
+
+    } catch (error) {
+        console.error("Error logging chat:", error);
+    }
+};
+
 // Chat Functions
 async function sendMessage() {
     if (isBusy) return;
@@ -644,7 +928,7 @@ async function sendMessage() {
                 try {
                     const headers = { 'Content-Type': 'application/json' };
                     if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
-                    const transResponse = await fetch('/translate', {
+                    const transResponse = await fetch(`${API_BASE_URL}/translate`, {
                         method: 'POST',
                         headers: headers,
                         body: JSON.stringify({ text: text })
@@ -695,15 +979,18 @@ async function sendMessage() {
             const headers = { 'Content-Type': 'application/json' };
             if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
 
-            const response = await fetch('/chat', {
+            const startTime = performance.now(); // Start timing
+
+            const response = await fetch(`${API_BASE_URL}/chat`, {
                 method: 'POST',
                 headers: headers,
                 body: JSON.stringify({
                     message: text,
                     chat_id: currentChatId,
                     user_email: currentUser ? currentUser.email : null,
+                    user_avatar: currentUser ? currentUser.picture : null,
                     history: chatHistory.map(msg => ({ role: msg.role, content: msg.content })),
-                    model: "google/gemma-3-27b-it:free"
+                    model: selectedModel || "google/gemma-3-27b-it:free"
                 })
             });
 
@@ -719,6 +1006,20 @@ async function sendMessage() {
                 const images = data.data.images || [];
                 aiMsgElement.remove();
                 appendMessage(aiMessage, 'ai', null, images);
+
+                // Log to OpenSearch
+                const endTime = performance.now();
+                const latency = Math.round(endTime - startTime);
+
+                logChatToOpenSearch({
+                    sessionId: currentChatId,
+                    userId: currentUser ? currentUser.email : "guest",
+                    modelName: "google/gemma-3-27b-it:free",
+                    message: text,
+                    tokens: 0, // Mock usage or extract from response if available
+                    latency: latency
+                });
+
             } else {
                 throw new Error('Unknown error from server');
             }
@@ -740,7 +1041,12 @@ function appendMessage(text, sender, id = null, images = []) {
     // Save History only if it's a user message or completed AI message (not placeholder)
     if (!id) {
         // Update State
-        chatHistory.push({ role: sender === 'user' ? "user" : "assistant", content: text, images: images });
+        chatHistory.push({
+            role: sender === 'user' ? "user" : "assistant",
+            content: text,
+            images: images,
+            created_at: new Date().toISOString() // เพิ่ม timestamp เพื่อใช้ใน Excel export
+        });
         saveChatHistory();
     }
 }
@@ -900,7 +1206,7 @@ async function summarizeCurrentChat() {
         if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
 
         // 🆕 เรียก /chat/summary (แบบเต็ม) เพื่อเอา title/topics/summary
-        const res = await fetch('/chat/summary', {
+        const res = await fetch(`${API_BASE_URL}/chat/summary`, {
             method: 'POST',
             headers,
             body: JSON.stringify({
@@ -1019,7 +1325,78 @@ function initTheme() {
     });
 }
 
+
 // Initialize theme on load
 document.addEventListener('DOMContentLoaded', () => {
     initTheme();
 });
+
+// ========================================
+// Export Chat to Excel Function
+// ========================================
+function exportChatToExcel() {
+    if (!chatHistory || chatHistory.length === 0) {
+        alert('ไม่มีข้อความให้ส่งออก / No messages to export');
+        return;
+    }
+
+    try {
+        // แปลงข้อมูล chatHistory เป็นรูปแบบสำหรับ Excel
+        const data = chatHistory.map((msg, index) => ({
+            'ลำดับ / Index': index + 1,
+            'เวลา / Timestamp': formatTimestampForExcel(msg.created_at || new Date()),
+            'บทบาท / Role': msg.role === 'user' ? 'User' : 'Assistant',
+            'เนื้อหา / Content': msg.content || '',
+            'Chat ID': currentChatId || 'unknown'
+        }));
+
+        // สร้าง worksheet
+        const worksheet = XLSX.utils.json_to_sheet(data);
+
+        // ปรับความกว้างคอลัมน์
+        worksheet['!cols'] = [
+            { wch: 10 },  // Index
+            { wch: 20 },  // Timestamp
+            { wch: 15 },  // Role
+            { wch: 80 },  // Content
+            { wch: 20 }   // Chat ID
+        ];
+
+        // สร้าง workbook
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Chat History');
+
+        // สร้างชื่อไฟล์
+        const chatIdSafe = (currentChatId || 'chat').replace(/[^a-zA-Z0-9-_]/g, '-').substring(0, 30);
+        const timestamp = new Date().toISOString().split('T')[0];
+        const filename = `chat-history-${chatIdSafe}-${timestamp}.xlsx`;
+
+        // ส่งออกไฟล์
+        XLSX.writeFile(workbook, filename);
+
+        console.log(`✅ Exported ${chatHistory.length} messages to ${filename}`);
+    } catch (error) {
+        console.error('Export failed:', error);
+        alert('การส่งออกล้มเหลว / Export failed. Please try again.');
+    }
+}
+
+// ฟังก์ชันช่วยจัดรูปแบบ timestamp
+function formatTimestampForExcel(timestamp) {
+    const date = timestamp instanceof Date ? timestamp : new Date(timestamp || Date.now());
+
+    if (isNaN(date.getTime())) {
+        return new Date().toLocaleString('th-TH');
+    }
+
+    // Format: YYYY-MM-DD HH:mm:ss
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
+

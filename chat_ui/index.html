@@ -9,6 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <link rel="icon" href="/static/cat_avatar.png">
 </head>
@@ -72,6 +73,10 @@
                     <span>ABDUL Chat</span>
                 </div>
                 <div class="header-right">
+                    <button id="export-excel-btn" class="icon-btn" title="Export to Excel"
+                        onclick="exportChatToExcel()">
+                        <i class="fas fa-file-excel"></i>
+                    </button>
                     <button id="summary-btn" class="summary-btn-primary" title="สรุปบทสนทนานี้คุยเรื่องอะไร">
                         <i class="fas fa-list"></i>
                         <span>สรุปแชทนี้</span>
@@ -135,6 +140,9 @@
             <h1>User Profile</h1>
             <p>Sign in to your account to save your chat history.</p>
             <div id="google-login-container"></div>
+
+            <!-- OpenRouter Settings Container -->
+            <div id="settings-container-mount"></div>
         </div>
     </div>
 

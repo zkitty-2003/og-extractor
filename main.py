@@ -1,8 +1,9 @@
-from fastapi import FastAPI, HTTPException, Depends, Response, BackgroundTasks
-from datetime import datetime
+from fastapi import FastAPI, HTTPException, Depends, Response, BackgroundTasks, Query, Header
+from datetime import datetime, timezone, timedelta
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from urllib.parse import urlparse
+
+from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, HttpUrl
 
@@ -39,46 +40,58 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Static files
-app.mount("/static", StaticFiles(directory="chat_ui"), name="static")
+
+def build_opensearch_client():
+    # Get from docker-compose: OPENSEARCH_URL=http://opensearch-node:9200
+    url = os.getenv("OPENSEARCH_URL", "http://localhost:9200")
+    u = urlparse(url)
+
+    host = u.hostname or "localhost"
+    port = u.port or 9200
+    use_ssl = (u.scheme == "https")
+
+    username = os.getenv("OPENSEARCH_USERNAME") or None
+    password = os.getenv("OPENSEARCH_PASSWORD") or None
+
+    kwargs = dict(
+        hosts=[{"host": host, "port": port}],
+        use_ssl=use_ssl,
+        verify_certs=False,
+    )
+
+    if username and password:
+        kwargs["http_auth"] = (username, password)
+
+    # Enforce short timeout to prevent hanging on reconnect
+    kwargs["timeout"] = 5
+
+    return AsyncOpenSearch(**kwargs)
 
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize OpenSearch client on startup."""
     global opensearch_client
-    opensearch_url = os.environ.get("OPENSEARCH_URL")
-    username = os.environ.get("OPENSEARCH_USERNAME")
-    password = os.environ.get("OPENSEARCH_PASSWORD")
-
-    if opensearch_url and username and password:
-        try:
-            print(f"Initializing OpenSearch client connecting to {opensearch_url}...")
-            opensearch_client = AsyncOpenSearch(
-                hosts=[opensearch_url],
-                http_auth=(username, password),
-                use_ssl=True,
-                verify_certs=True,
-                ssl_show_warn=False,
-            )
-            if await opensearch_client.ping():
-                print("OpenSearch client initialized successfully.")
-                await init_opensearch_index()
-            else:
-                print("OpenSearch client initialized but ping failed.")
-        except Exception as e:
-            print(f"Failed to initialize OpenSearch client: {e}")
-    else:
-        print("OpenSearch credentials not found in env. Indexing will be disabled.")
+    print("Initializing OpenSearch client via OPENSEARCH_URL...")
+    try:
+        opensearch_client = build_opensearch_client()
+        ok = await opensearch_client.ping()
+        print("OpenSearch ping =", ok)
+        if ok:
+            await init_opensearch_index()
+    except Exception as e:
+        print("Failed to initialize OpenSearch client:", e)
 
 
 async def init_opensearch_index():
-    """Initialize the chat_summaries index with proper mapping if it doesn't exist."""
-    index_name = "chat_summaries"
+    """Initialize the chat_summaries and token_usage indices with proper mapping if they don't exist."""
     if not opensearch_client:
         return
 
-    mapping = {
+    # ==========================================
+    # Index 1: chat_summaries
+    # ==========================================
+    index_name_summaries = "chat_summaries"
+    mapping_summaries = {
         "mappings": {
             "properties": {
                 "id": {"type": "keyword"},
@@ -96,21 +109,230 @@ async def init_opensearch_index():
     }
 
     try:
-        exists = await opensearch_client.indices.exists(index=index_name)
+        exists = await opensearch_client.indices.exists(index=index_name_summaries)
         if not exists:
-            await opensearch_client.indices.create(index=index_name, body=mapping)
-            print(f"Index '{index_name}' created with mapping.")
+            await opensearch_client.indices.create(index=index_name_summaries, body=mapping_summaries)
+            print(f"Index '{index_name_summaries}' created with mapping.")
         else:
-            print(f"Index '{index_name}' already exists.")
+            print(f"Index '{index_name_summaries}' already exists.")
     except Exception as e:
-        print(f"Error initializing index '{index_name}': {e}")
+        print(f"Error initializing index '{index_name_summaries}': {e}")
 
+    # ==========================================
+    # Index 2: token_usage (NEW)
+    # ==========================================
+    index_name_tokens = "token_usage"
+    mapping_tokens = {
+        "mappings": {
+            "properties": {
+                "request_id": {"type": "keyword"},
+                "timestamp": {"type": "date"},
+                "session_id": {"type": "keyword"},
+                "user_id": {"type": "keyword"},
+                "model": {"type": "keyword"},
+                "provider": {"type": "keyword"},
+                "prompt_tokens": {"type": "integer"},
+                "completion_tokens": {"type": "integer"},
+                "total_tokens": {"type": "integer"},
+                "cost": {"type": "float"},
+                "response_time_ms": {"type": "float"},
+                "status": {"type": "keyword"},
+                "endpoint": {"type": "keyword"}
+            }
+        }
+    }
+
+    try:
+        exists = await opensearch_client.indices.exists(index=index_name_tokens)
+        if not exists:
+            await opensearch_client.indices.create(index=index_name_tokens, body=mapping_tokens)
+            print(f"Index '{index_name_tokens}' created with mapping.")
+        else:
+            print(f"Index '{index_name_tokens}' already exists.")
+    except Exception as e:
+        print(f"Error initializing index '{index_name_tokens}': {e}")
+
+
+
+async def get_opensearch_or_raise():
+    global opensearch_client
+    if opensearch_client is None:
+        print("⚠️ OpenSearch client is None. Attempting to reconnect...")
+        try:
+            opensearch_client = build_opensearch_client()
+            if not await opensearch_client.ping():
+                 opensearch_client = None
+                 print("❌ OpenSearch ping failed during reconnection attempt.")
+                 raise HTTPException(status_code=503, detail="OpenSearch unreachable")
+            print("✅ OpenSearch reconnected successfully.")
+            await init_opensearch_index()
+        except Exception as e:
+            print(f"❌ Re-init failed: {e}")
+            raise HTTPException(status_code=503, detail="OpenSearch unavailable")
+    return opensearch_client
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """Close OpenSearch client on shutdown."""
     if opensearch_client:
         await opensearch_client.close()
+
+
+
+async def log_to_opensearch(
+    session_id: str,
+    user_id: str,
+    role: str,
+    model: str,
+    status: str,
+    content: Optional[str] = None,
+    response_time_ms: Optional[float] = None,
+    user_avatar: Optional[str] = None
+):
+    """
+    Logs a single document to OpenSearch index 'ai_chat_logs'.
+    Format follows the requirement: 1 message = 1 document.
+    """
+    # ✅ STEP 1 & 3: No Auth Check + Print/Log
+    print(f"LOGGING TO OPENSEARCH: {role} (Status: {status}) | RT: {response_time_ms}")
+
+    if not opensearch_client:
+        try:
+            await get_opensearch_or_raise()
+        except:
+            print("Skipping OpenSearch logging: client not initialized and reconnection failed.")
+            return
+
+    doc = {
+        "session_id": session_id,
+        "user_id": user_id,
+        "role": role,
+        "model": model,
+        "status": status,
+        "environment": "dev",
+        "@timestamp": datetime.now(timezone.utc).isoformat(),
+        "content_length": len(content) if content else 0,
+        "content_length": len(content) if content else 0,
+        "is_anonymous": True if user_id == "anonymous" else False,
+        "user_avatar": user_avatar
+    }
+
+    if response_time_ms is not None:
+        doc["response_time_ms"] = int(round(response_time_ms))
+    
+    if content:
+        doc["content_snippet"] = content[:1000]
+
+    try:
+        print(f"Index doc payload: {json.dumps(doc, default=str)}")
+        resp = await opensearch_client.index(index="ai_chat_logs", body=doc)
+        print(f"OpenSearch Response: {resp}")
+    except Exception as e:
+        print(f"Failed to log to OpenSearch: {e}")
+
+
+async def log_token_usage(
+    request_id: str,
+    session_id: str,
+    user_id: str,
+    model: str,
+    usage: Optional[Dict[str, Any]],
+    response_time_ms: float,
+    status: str = "success",
+    endpoint: str = "/chat"
+):
+    """
+    Logs token usage from OpenRouter API response to OpenSearch.
+    
+    Args:
+        request_id: Unique ID for this request (UUID)
+        session_id: Chat session ID
+        user_id: User email or "anonymous"
+        model: Model name (e.g., "google/gemini-pro")
+        usage: Usage dict from OpenRouter response with prompt_tokens, completion_tokens, total_tokens
+        response_time_ms: Response time in milliseconds
+        status: "success" or "error"
+        endpoint: API endpoint that was called
+    """
+    print(f"\n{'='*60}")
+    print(f"🚀 log_token_usage CALLED!")
+    print(f"   request_id: {request_id}")
+    print(f"   session_id: {session_id}")
+    print(f"   user_id: {user_id}")
+    print(f"   model: {model}")
+    print(f"   status: {status}")
+    print(f"   endpoint: {endpoint}")
+    print(f"   response_time_ms: {response_time_ms}ms")
+    print(f"   📊 USAGE DATA: {usage}")
+    print(f"   📊 USAGE TYPE: {type(usage)}")
+    if usage:
+        print(f"   📊 USAGE KEYS: {usage.keys()}")
+    print(f"{'='*60}\n")
+    
+    if not opensearch_client:
+        try:
+            await get_opensearch_or_raise()
+        except:
+             print("Skipping token usage logging: OpenSearch client not initialized and reconnection failed.")
+             return
+    
+    # Extract token counts from usage (handle missing gracefully)
+    prompt_tokens = None
+    completion_tokens = None
+    total_tokens = None
+    
+    if usage:
+        prompt_tokens = usage.get("prompt_tokens")
+        completion_tokens = usage.get("completion_tokens")
+        total_tokens = usage.get("total_tokens")
+    
+    # ⚠️ FALLBACK: If usage data is missing (common for free models)
+    # Estimate tokens from response time and status
+    # This is an approximation - not accurate but better than nothing
+    if total_tokens is None:
+        # Rough estimation: ~4 characters per token (average for English/Thai mix)
+        # For free models, we at least want to track API calls
+        estimated_total = 0
+        if status == "success":
+            # Assume average request uses ~100-500 tokens
+            estimated_total = max(100, int(response_time_ms / 10))  # Rough heuristic
+        
+        prompt_tokens = estimated_total // 2 if estimated_total > 0 else 0
+        completion_tokens = estimated_total // 2 if estimated_total > 0 else 0
+        total_tokens = estimated_total
+        
+        print(f"   ⚠️  Usage data not provided by API - using estimates")
+        print(f"   📊 Estimated: prompt={prompt_tokens}, completion={completion_tokens}, total={total_tokens}")
+    
+    # Parse provider from model string (e.g., "google" from "google/gemini-pro")
+    provider = "unknown"
+    if "/" in model:
+        provider = model.split("/")[0]
+    
+    # Build document for OpenSearch
+    doc = {
+        "request_id": request_id,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "session_id": session_id,
+        "user_id": user_id,
+        "model": model,
+        "provider": provider,
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "total_tokens": total_tokens,
+        "cost": 0.0,  # TODO: Implement cost calculation based on model pricing
+        "response_time_ms": round(response_time_ms, 2),
+        "status": status,
+        "endpoint": endpoint
+    }
+    
+    try:
+        print(f"Token usage doc: {json.dumps(doc, default=str)}")
+        resp = await opensearch_client.index(index="token_usage", body=doc)
+        print(f"Token usage logged: {resp.get('_id')}")
+    except Exception as e:
+        print(f"Failed to log token usage to OpenSearch: {e}")
+
 
 
 async def index_chat_summary(doc: dict) -> None:
@@ -215,24 +437,9 @@ async def search_user_memory(user_email: str) -> Optional[str]:
 @app.get("/")
 async def root():
     return {
-        "message": "OG Extractor & Chat API is running",
-        "endpoints": ["/extract", "/chat", "/docs", "/ui", "/image", "/summary", "/chat/summary"],
+        "message": "OG Extractor & Chat API is running (Backend Only)",
+        "endpoints": ["/extract", "/chat", "/docs", "/summary", "/chat/summary"],
     }
-
-
-@app.get("/ui")
-async def read_ui():
-    return FileResponse("chat_ui/index.html")
-
-
-@app.get("/image")
-async def read_image_ui():
-    return FileResponse("chat_ui/image.html")
-
-
-@app.get("/favicon.ico", include_in_schema=False)
-async def favicon():
-    return Response(status_code=204)
 
 
 # ==============================
@@ -378,21 +585,32 @@ def resolve_openrouter_key(
 
 
 # ==============================
-# 4) Translation API (ใช้โมเดลเล็กฟรี)
+# 4) Translation API
 # ==============================
 
+from typing import Tuple, List, Optional
+from fastapi import HTTPException, Depends
+from fastapi.security import HTTPAuthorizationCredentials
+from pydantic import BaseModel
+import httpx
+
+# ------------------------------
+# Core translation logic
+# ------------------------------
 async def _translate_logic(text: str, api_key: str) -> Tuple[str, List[str]]:
     """
-    พยายามแปลข้อความ Thai -> English สำหรับ image prompt
-    โดยใช้โมเดลฟรีที่เบาลง: google/gemma-3-4b-it:free
+    Translate Thai -> English for image prompt.
+    Uses ONLY free lightweight model:
+    google/gemma-3-27b-it:free
     """
+
     models = [
-        "google/gemini-1.5-flash",
+        "google/gemma-3-27b-it:free",
     ]
 
     errors: List[str] = []
 
-    if not text.strip():
+    if not text or not text.strip():
         return "", errors
 
     async with httpx.AsyncClient(timeout=60) as client:
@@ -406,13 +624,20 @@ async def _translate_logic(text: str, api_key: str) -> Tuple[str, List[str]]:
                             "content": (
                                 "You are a strict translation engine for image prompts.\n\n"
                                 "Input: Thai text describing an image.\n"
-                                "Output: SHORT English prompt only.\n"
-                                "- English only, no Thai, no explanation.\n"
-                                "- No quotes, no extra phrases.\n"
-                                "- 5–20 words, concise.\n"
+                                "Output: SHORT English image prompt only.\n\n"
+                                "Rules:\n"
+                                "- English only\n"
+                                "- No Thai\n"
+                                "- No explanation\n"
+                                "- No quotes\n"
+                                "- 5–20 words\n"
+                                "- Concise and visual\n"
                             ),
                         },
-                        {"role": "user", "content": text},
+                        {
+                            "role": "user",
+                            "content": text,
+                        },
                     ],
                 }
 
@@ -422,14 +647,14 @@ async def _translate_logic(text: str, api_key: str) -> Tuple[str, List[str]]:
                         "Authorization": f"Bearer {api_key}",
                         "Content-Type": "application/json",
                         "HTTP-Referer": "https://og-extractor-zxkk.onrender.com",
-                        "X-Title": "FastAPI Chat Translation",
+                        "X-Title": "FastAPI Translation API",
                     },
                     json=payload,
                 )
 
                 if response.status_code == 200:
                     data = response.json()
-                    if "choices" in data and data["choices"]:
+                    if data.get("choices"):
                         content = data["choices"][0]["message"]["content"].strip()
                         if content:
                             return content, errors
@@ -438,24 +663,26 @@ async def _translate_logic(text: str, api_key: str) -> Tuple[str, List[str]]:
                     f"Model {model} failed: {response.status_code} - "
                     f"{response.text[:200]}"
                 )
-                print(error_msg)
                 errors.append(error_msg)
-                continue
 
             except Exception as e:
-                error_msg = f"Model {model} error: {str(e)}"
-                print(error_msg)
+                error_msg = f"Model {model} exception: {str(e)}"
                 errors.append(error_msg)
-                continue
 
-    print(f"All translation models failed. Returning original text. Errors: {errors}")
+    # All models failed → return original text
     return text, errors
 
 
+# ------------------------------
+# Request schema
+# ------------------------------
 class TranslationRequest(BaseModel):
     text: str
 
 
+# ------------------------------
+# API endpoint
+# ------------------------------
 @app.post("/translate")
 async def translate_text(
     request: TranslationRequest,
@@ -464,12 +691,25 @@ async def translate_text(
     api_key = resolve_openrouter_key(creds)
 
     try:
-        english_text, debug_info = await _translate_logic(request.text, api_key)
-        return {"english": english_text, "debug": debug_info}
+        english_text, debug_info = await _translate_logic(
+            request.text,
+            api_key,
+        )
+
+        return {
+            "english": english_text,
+            "debug": debug_info,
+            # 👇 build tag เอาไว้เช็กว่าเข้าโค้ดนี้จริง
+            "build": "translate-v2-gemma-only",
+        }
+
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Translation error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Translation error: {str(e)}",
+        )
 
 
 # ==============================
@@ -478,10 +718,11 @@ async def translate_text(
 
 class ChatRequest(BaseModel):
     message: str
-    model: Optional[str] = "google/gemini-flash-1.5"
+    model: Optional[str] = "google/gemma-3-27b-it:free"
     history: Optional[List[Dict[str, Any]]] = None
     chat_id: Optional[str] = None
     user_email: Optional[str] = None
+    user_avatar: Optional[str] = None
 
 
 def is_image_generation_prompt(text: str) -> bool:
@@ -499,9 +740,16 @@ async def chat_with_ai(
     background_tasks: BackgroundTasks,
     creds: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
+
     """
     Main Chat Endpoint (Standard) with Long-term Memory Injection
     """
+    print("\n" + "="*60)
+    print(f"🎯 /CHAT ENDPOINT HIT! Time: {datetime.now()}")
+    print(f"   Message: {request.message[:50]}...")
+    print(f"   User: {request.user_email}")
+    print("="*60 + "\n")
+    
     api_key = resolve_openrouter_key(creds)
 
     # 1. Translate if needed (Logic remains same)
@@ -522,7 +770,7 @@ async def chat_with_ai(
                "data": {
                    "message": translated_text,
                    "images": [],
-                   "model": "google/gemma-3-4b-it:free",
+                   "model": "google/gemma-3-27b-it:free",
                },
             }
         except Exception as e:
@@ -530,10 +778,17 @@ async def chat_with_ai(
 
     # 2. Prepare Memory & System Prompt
     system_content = (
-        "You are ABDUL, a helpful AI assistant. "
-        "Always answer in Thai unless asked otherwise. "
-        "Do NOT use Romanized Thai."
+        "You are ABDUL, a helpful AI assistant.\n"
+        "CORE DIRECTIVES:\n"
+        "1. LANGUAGE: Answer in THAI only (unless user speaks English).\n"
+        "2. SCRIPT: Use THAI SCRIPT ONLY. Do not use Roman/English letters for Thai words.\n"
+        "3. NO PRONUNCIATION: Do not explain how to pronounce Thai words.\n"
+        "4. NO REPETITION: Do not repeat meanings in multiple languages.\n\n"
+        "CORRECT EXAMPLE:\n"
+        "✅ 'สวัสดีครับ มีอะไรให้ช่วยไหมครับ'\n"
+        "✅ '1 วัน มี 24 ชั่วโมงครับ'"
     )
+
 
     # Inject Memory if User is Known
     if request.user_email:
@@ -556,6 +811,31 @@ async def chat_with_ai(
     messages.append({"role": "user", "content": request.message})
 
     # 4. Call AI
+    import time
+    start_time = time.time()
+    
+    # Generate unique request_id for token tracking
+    request_id = str(uuid.uuid4())
+    
+    # ✅ STEP 2: Log User Message
+    # Generate/Use chat_id as session_id
+    session_id = request.chat_id or str(uuid.uuid4())
+    user_id = request.user_email if request.user_email and request.user_email.strip() else "anonymous"
+    
+    # 🔍 DEBUG: Check user_id assignment
+    print(f"🔍 DEBUG: request.user_email={repr(request.user_email)} → user_id={repr(user_id)}")
+    
+    background_tasks.add_task(
+        log_to_opensearch,
+        session_id=session_id,
+        user_id=user_id,
+        role="user",
+        model=request.model,
+        status="success",
+        content=request.message,
+        user_avatar=request.user_avatar
+    )
+
     payload = {
         "model": request.model,
         "messages": messages,
@@ -575,13 +855,56 @@ async def chat_with_ai(
                 json=payload,
             )
 
+        # Calculate time
+        end_time = time.time()
+        duration_ms = (end_time - start_time) * 1000.0
+
         if response.status_code != 200:
-             return {"success": False, "error": f"OpenRouter Error: {response.text}"}
+             error_txt = f"OpenRouter Error: {response.text}"
+             # Log Error
+             background_tasks.add_task(
+                log_to_opensearch,
+                session_id=session_id,
+                user_id=user_id,
+                role="assistant",
+                model=request.model,
+                status="error",
+                content=error_txt,
+                response_time_ms=duration_ms
+             )
+             return {"success": False, "error": error_txt}
 
         data = response.json()
         ai_message = data["choices"][0]["message"]["content"]
+        
+        # ✅ STEP 2: Log AI Message (Success)
+        background_tasks.add_task(
+            log_to_opensearch,
+            session_id=session_id,
+            user_id=user_id,
+            role="assistant",
+            model=data.get("model", request.model),
+            status="success",
+            content=ai_message,
+            response_time_ms=duration_ms
+        )
+        
+        # ✅ NEW: Log Token Usage
+        # Extract usage from OpenRouter response (OpenAI-compatible format)
+        usage_data = data.get("usage")  # Contains prompt_tokens, completion_tokens, total_tokens
+        # Log token usage SYNCHRONOUSLY (not background task)
+        await log_token_usage(
+            request_id=request_id,
+            session_id=session_id,
+            user_id=user_id,
+            model=data.get("model", request.model),
+            usage=usage_data,
+            response_time_ms=duration_ms,
+            status="success",
+            endpoint="/chat"
+        )
 
-        # 5. Background Task (Simple Update)
+        # 5. Background Task (Simple Update for Summary Index)
         if request.chat_id:
             full_history = messages + [{"role": "assistant", "content": ai_message}]
             background_tasks.add_task(
@@ -602,6 +925,16 @@ async def chat_with_ai(
 
     except Exception as e:
         print(f"Chat error: {e}")
+        # Log Exception
+        background_tasks.add_task(
+            log_to_opensearch,
+            session_id=request.chat_id or "unknown",
+            user_id=request.user_email or "unknown",
+            role="assistant",
+            model=request.model,
+            status="error",
+            content=str(e)
+        )
         return {"success": False, "error": str(e)}
 
 
@@ -623,47 +956,64 @@ async def _analyze_chat_logic(
 ):
     """
     Stabilized Analyzer with Multi-Model Fallback
+    Strictly follows the provided conversation.
     """
-    # List of models to try in order
+    # Expanded list of models for robustness
     SUMMARY_MODELS = [
-        "google/gemini-flash-1.5",
         "google/gemini-2.0-flash-exp:free",
         "google/gemini-2.0-flash-thinking-exp:free",
-        "huggingfaceh4/zephyr-7b-beta:free",
-        "mistralai/mistral-7b-instruct:free",
+        "meta-llama/llama-3-70b-instruct:free",
+        "mistralai/mixtral-8x7b-instruct",
         "qwen/qwen-2-7b-instruct:free",
     ]
 
-    # Use last 40 messages to be safe
-    MAX_MSG = 40
+    # Use more context if possible, but keep it within limits
+    MAX_MSG = 50
     trimmed = [m for m in messages[-MAX_MSG:] if m.get("role") in ("user", "assistant")]
+
+    if not trimmed:
+        return {"success": False, "error": "No conversation to analyze"}
 
     conversation_text = ""
     for m in trimmed:
-        role_th = "ผู้ใช้" if m.get("role") == "user" else "ผู้ช่วย"
+        role_th = "User" if m.get("role") == "user" else "AI"
         conversation_text += f"{role_th}: {m.get('content', '')}\n"
 
     system_prompt = (
-        "คุณคือระบบวิเคราะห์แชทภาษาไทย\n"
-        "- สรุปบทสนทนาเป็นภาษาไทย\n"
-        "- ตั้งชื่อเรื่อง (title)\n"
-        "- สร้างหัวข้อ (topics)\n"
-        "- ตอบเป็น JSON: { title, summary, topics, opensearch_doc: {...} }"
+        "You are a strict conversation summarizer.\n\n"
+        "LANGUAGE RULE: Detect the dominant language of the conversation.\n"
+        "- If Thai, summarize in THAI.\n"
+        "- If English, summarize in ENGLISH.\n"
+        "- Do NOT switch languages mid-summary.\n\n"
+        "STRICT GUIDELINES:\n"
+        "1. Summarize ONLY based on ACTUAL conversation content.\n"
+        "2. NO meta-explanations (e.g. 'AI can help...', 'The user asked...').\n"
+        "3. NO advertising, NO hallucinations, NO broad generalizations.\n"
+        "4. Be concise and factual.\n\n"
+        "REQUIRED OUTPUT FORMAT:\n"
+        "Title: (1 line, short & clear, in detected language)\n"
+        "Summary: (2-4 sentences, purely factual, in detected language)\n"
+        "Topics: (3-6 keywords, comma-separated, in detected language)\n"
     )
+    
+    final_user_content = f"Conversation to summarize:\n{conversation_text}"
+
+    import re
 
     errors = []
 
     async with httpx.AsyncClient(timeout=60) as client:
         for model in SUMMARY_MODELS:
+
             print(f"Analyzing chat with model: {model}")
             payload = {
                 "model": model,
                 "messages": [
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": conversation_text},
+                    {"role": "user", "content": final_user_content},
                 ],
-                "response_format": {"type": "json_object"},
-                "max_tokens": 1000,
+                # removed json object response format since user asks for text format
+                "max_tokens": 1500,
             }
 
             try:
@@ -671,7 +1021,7 @@ async def _analyze_chat_logic(
                     "https://openrouter.ai/api/v1/chat/completions",
                     headers={
                         "Authorization": f"Bearer {api_key}",
-                        "HTTP-Referer": "https://og-extractor-zxkk.onrender.com",
+                        "HTTP-Referer": "https://og-extractor.onrender.com",
                         "X-Title": "FastAPI Analyzer",
                     },
                     json=payload,
@@ -681,37 +1031,69 @@ async def _analyze_chat_logic(
                     data = r.json()
                     if "choices" in data and data["choices"]:
                         content = data["choices"][0]["message"]["content"]
-                        try:
-                            parsed = json.loads(content)
-                            
-                            # Standard OpenSearch Doc Prep
-                            doc = parsed.get("opensearch_doc", {})
-                            now_iso = datetime.utcnow().isoformat()
-                            doc["id"] = chat_id
-                            doc["user_email"] = user_email
-                            doc["title"] = parsed.get("title", "No Title")
-                            doc["summary"] = parsed.get("summary", "")
-                            doc["topics"] = parsed.get("topics", [])
-                            doc["last_message_at"] = now_iso
-                            
-                            parsed["opensearch_doc"] = doc
+                        
+                        # Parse Text Output with Regex
+                        title_match = re.search(r"Title:\s*(.+)", content, re.IGNORECASE)
+                        summary_match = re.search(r"Summary:\s*(.+)", content, re.IGNORECASE | re.DOTALL)
+                        topics_match = re.search(r"Topics:\s*(.+)", content, re.IGNORECASE)
 
-                            await index_chat_summary({
-                                "index": "chat_summaries", 
-                                "id": chat_id, 
-                                "body": doc
-                            })
+                        title = title_match.group(1).strip() if title_match else "สรุปแชท"
+                        
+                        summary = "ไม่มีสรุป"
+                        if summary_match:
+                            # Capture everything until "Topics:" or end of string
+                            raw_summary = summary_match.group(1).strip()
+                            # If topics come after summary, cut it off
+                            topics_start = re.search(r"Topics:", raw_summary, re.IGNORECASE)
+                            if topics_start:
+                                summary = raw_summary[:topics_start.start()].strip()
+                            else:
+                                summary = raw_summary
 
-                            return {"success": True, "data": parsed}
-                        except json.JSONDecodeError:
-                            print(f"Model {model} returned invalid JSON.")
-                            errors.append(f"{model}: Invalid JSON")
-                            continue
+                        topics = []
+                        if topics_match:
+                            raw_topics = topics_match.group(1).strip()
+                            # Split by comma or space if no commas
+                            if "," in raw_topics:
+                                topics = [t.strip() for t in raw_topics.split(",")]
+                            else:
+                                topics = [t.strip() for t in raw_topics.split()]
+                        
+                        # Fallback: if regex failed completely, treat whole content as summary
+                        if not title_match and not summary_match:
+                             summary = content.strip()
+
+                        # Construct Response
+                        parsed = {
+                            "title": title,
+                            "summary": summary,
+                            "topics": topics
+                        }
+                            
+                        # Standard OpenSearch Doc Prep
+                        doc = {}
+                        doc["id"] = chat_id
+                        doc["user_email"] = user_email
+                        doc["title"] = title
+                        doc["summary"] = summary
+                        doc["topics"] = topics
+                        doc["last_message_at"] = datetime.utcnow().isoformat()
+                        doc["message_count"] = len(messages)
+                        
+                        parsed["opensearch_doc"] = doc
+
+                        # Indexing
+                        await index_chat_summary({
+                            "index": "chat_summaries", 
+                            "id": chat_id, 
+                            "body": doc
+                        })
+
+                        return {"success": True, "data": parsed}
                 else:
-                    error_msg = f"{model}: {r.status_code} - {r.text[:100]}"
+                    error_msg = f"{model}: {r.status_code} - {r.text[:200]}"
                     print(error_msg)
                     errors.append(error_msg)
-                    # If 429, wait a bit before next model (optional, but good practice)
                     if r.status_code == 429:
                         await asyncio.sleep(1)
 
@@ -721,7 +1103,7 @@ async def _analyze_chat_logic(
                 errors.append(error_msg)
                 continue
 
-    return {"success": False, "error": f"All models failed. Details: {errors}"}
+    return {"success": False, "error": f"All models failed. Last error: {errors[-1] if errors else 'Unknown'}"}
 
 
 @app.post("/chat/summary")
@@ -735,10 +1117,7 @@ async def summarize_chat_session(
     )
 
 
-# ==============================
-# 7) Simple Summary API (Button)
-# ==============================
-
+# Unified to use the same robust logic
 class SimpleSummaryRequest(BaseModel):
     chat_id: str
     messages: List[Dict[str, Any]]
@@ -751,86 +1130,741 @@ async def summarize_simple(
     creds: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """
-    Restored Simple Summary with Multi-Model Fallback
+    Unified Summary Endpoint
     """
     api_key = resolve_openrouter_key(creds)
-    
-    # Same list of models as analyzer
-    SUMMARY_MODELS = [
-        "google/gemini-flash-1.5",
-        "google/gemini-2.0-flash-exp:free",
-        "google/gemini-2.0-flash-thinking-exp:free",
-        "huggingfaceh4/zephyr-7b-beta:free",
-        "mistralai/mistral-7b-instruct:free",
-        "qwen/qwen-2-7b-instruct:free",
-    ]
+    return await _analyze_chat_logic(
+        request.chat_id, request.messages, api_key, request.user_email
+    )
 
-    conversation_text = ""
-    for msg in request.messages[-30:]:
-        role = msg.get("role", "user")
-        content = msg.get("content", "")
-        conversation_text += f"{role}: {content}\n"
 
-    last_error = ""
+# ==============================
+# 7) Dashboard API (Analytics)
+# ==============================
 
-    async with httpx.AsyncClient(timeout=60) as client:
-        for model in SUMMARY_MODELS:
-            try:
-                # Retry loop per model (optional, but good for transient 429s on a specific model)
-                # But since we have many models, maybe just try once per model is faster?
-                # Let's simple try once per model to avoid waiting too long if one is rate limited.
-                
-                print(f"Simple summary with model: {model}")
-                r = await client.post(
-                    "https://openrouter.ai/api/v1/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {api_key}", 
-                        "HTTP-Referer": "https://og-extractor-zxkk.onrender.com",
-                        "X-Title": "FastAPI Simple Summary"
-                    },
-                    json={
-                        "model": model,
-                        "messages": [
-                            {"role": "system", "content": "Summarize this chat in Thai (2-3 sentences)."},
-                            {"role": "user", "content": conversation_text}
+@app.get("/api/dashboard/summary")
+async def dashboard_summary(
+    time_range: str = Query("24h", regex="^(24h|7d|30d)$"),
+    model: Optional[str] = None
+):
+    # Auto-reconnect if needed
+    await get_opensearch_or_raise()
+
+    # 1. OpenSearch Date Math for time range
+    # 2. Strict field usage (no .keyword)
+    # 3. Aggregations as requested
+    query_body = {
+        "size": 0,
+        "query": {
+            "bool": {
+                "must": [
+                    {"range": {"@timestamp": {"gte": f"now-{time_range}", "lte": "now"}}}
+                ]
+            }
+        },
+        "aggs": {
+            "total_messages": {"value_count": {"field": "@timestamp"}},
+            "active_users": {
+                "filter": {
+                    "bool": {
+                        "must_not": [
+                             {"term": {"is_anonymous": True}}
                         ]
                     }
-                )
-                
-                if r.status_code == 200:
-                    data = r.json()
-                    summary = data["choices"][0]["message"]["content"]
-                    
-                    # Auto-save minimal doc
-                    await index_chat_summary({
-                        "index": "chat_summaries",
-                        "id": request.chat_id,
-                        "body": {
-                            "id": request.chat_id,
-                            "user_email": request.user_email,
-                            "summary": summary,
-                            "last_message_at": datetime.utcnow().isoformat()  
-                        }
-                    })
-                    
-                    return {
-                        "success": True, 
-                        "data": {"summary": summary}
-                    }
-                elif r.status_code == 429:
-                    print(f"Model {model} rate limited (429). Trying next...")
-                    last_error = f"{model} 429"
-                    await asyncio.sleep(0.5) 
-                else:
-                    print(f"Model {model} failed: {r.status_code}")
-                    last_error = f"{model} {r.status_code}"
+                },
+                "aggs": {
+                    "count": {"cardinality": {"field": "user_id.keyword"}}
+                }
+            },
+            "sessions": {"cardinality": {"field": "session_id.keyword"}},
+            "response_time_stats": {
+                "percentiles": {
+                    "field": "response_time_ms",
+                    "percents": [50, 95]
+                }
+            },
+            "error_count": {"filter": {"term": {"status.keyword": "error"}}},
+            "anonymous_messages": {"filter": {"term": {"is_anonymous": True}}},
 
-            except Exception as e:
-                print(f"Model {model} exception: {e}")
-                last_error = str(e)
-                continue
+            "top_users": {"terms": {"field": "user_id.keyword", "size": 10}},
+            "top_models": {"terms": {"field": "model.keyword", "size": 5}}
+        }
+    }
+
+    # Debug print
+    print(f"DEBUG: Dashboard Summary Query (Fixed) -> {json.dumps(query_body)}")
+    
+    # Allow exceptions to be raised (do not swallow)
+    resp = await opensearch_client.search(index="ai_chat_logs", body=query_body)
+    
+    aggs = resp["aggregations"]
+
+    # Extract Aggregations
+    total_messages = aggs["total_messages"]["value"]
+
+    # True Active Users (Authenticated Only)
+    active_users = aggs["active_users"]["count"]["value"]
+    
+    sessions = aggs["sessions"]["value"]
+    
+    # Percentiles (Handle Nulls)
+    p50 = aggs["response_time_stats"]["values"].get("50.0")
+    p95 = aggs["response_time_stats"]["values"].get("95.0")
+    
+    response_time_p50_ms = int(round(p50)) if p50 is not None else 0
+    response_time_p95_ms = int(round(p95)) if p95 is not None else 0
+    
+    # Error Stats
+    error_count = aggs["error_count"]["doc_count"]
+    error_rate_pct = 0
+    if total_messages > 0:
+        error_rate_pct = int(round((error_count / total_messages) * 100))
+
+    # Anonymous Stats
+    anonymous_msg_count = aggs["anonymous_messages"]["doc_count"]
+    anonymous_rate_pct = 0
+    if total_messages > 0:
+        anonymous_rate_pct = int(round((anonymous_msg_count / total_messages) * 100))
+
+    # Top Users Processing
+    raw_top_users = aggs["top_users"]["buckets"]
+    
+    final_top_users = []
+    
+    # Process all users including anonymous
+    for b in raw_top_users:
+        uid = b["key"]
+        count = b["doc_count"]
+        
+        # Treat both "anonymous" and "dev_user" as Anonymous
+        if uid == "anonymous" or uid == "dev_user":
+            # Use friendly name for anonymous users
+            final_top_users.append({
+                "name": "Anonymous",
+                "count": count,
+                "is_anonymous": True
+            })
+        else:
+            final_top_users.append({
+                "name": uid,
+                "count": count,
+                "is_anonymous": False
+            })
+    
+    # Sort by count descending (already sorted by OpenSearch, but ensure it)
+    final_top_users.sort(key=lambda x: x["count"], reverse=True)
+    
+    # Limit to top 10 users total (including anonymous)
+    final_top_users = final_top_users[:10]
+
+    # 🟢 Safe Avatar Fetching (Retroactive)
+    # Fetch latest avatar for each real user via separate efficient queries
+    async def fetch_avatar(u_entry):
+        if u_entry["is_anonymous"]: 
+            return u_entry
             
-    return {"success": False, "error": f"Summary failed after trying all models. Last error: {last_error}"}
+        try:
+            # Search for 1 latest doc with this user_id that has user_avatar
+            av_query = {
+                "size": 1,
+                "sort": [{"@timestamp": {"order": "desc"}}],
+                "_source": ["user_avatar"],
+                "query": {
+                    "bool": {
+                        "must": [
+                            {"term": {"user_id.keyword": u_entry["name"]}},
+                            {"exists": {"field": "user_avatar"}}
+                        ]
+                    }
+                }
+            }
+            av_resp = await opensearch_client.search(index="ai_chat_logs", body=av_query)
+            if av_resp["hits"]["hits"]:
+                url = av_resp["hits"]["hits"][0]["_source"].get("user_avatar")
+                if url:
+                    u_entry["avatar_url"] = url
+        except Exception as e:
+            print(f"Avatar fetch failed for {u_entry['name']}: {e}")
+        return u_entry
+
+    # Run avatar fetches - DISABLED for performance
+    # for u in final_top_users:
+    #    await fetch_avatar(u)
+
+    
+    # Top Models
+    top_models = [
+        {"name": b["key"], "count": b["doc_count"]}
+        for b in aggs["top_models"]["buckets"]
+    ]
+
+    return {
+        "total_messages": int(total_messages),
+        "active_users": int(active_users),
+        "sessions": int(sessions),
+        "response_time_p50_ms": response_time_p50_ms,
+        "response_time_p95_ms": response_time_p95_ms,
+        "error_count": int(error_count),
+        "error_rate_pct": int(error_rate_pct),
+        "top_users": final_top_users,
+        "top_models": top_models,
+        "anonymous_messages": int(anonymous_msg_count),
+        "anonymous_rate_pct": int(anonymous_rate_pct)
+    }
+
+
+@app.get("/api/dashboard/timeseries")
+async def dashboard_timeseries(
+    time_range: str = Query("24h", regex="^(24h|7d|30d)$")
+):
+    # Auto-reconnect if needed
+    await get_opensearch_or_raise()
+
+    interval = "1h"
+    if time_range == "24h":
+        interval = "1h"
+    elif time_range == "7d":
+        interval = "1d"
+    else:
+        interval = "1d"
+
+    # Use OpenSearch Date Math and fixed interval
+    query_body = {
+        "size": 0,
+        "query": {
+            "bool": {
+                "must": [
+                    {"range": {"@timestamp": {"gte": f"now-{time_range}", "lte": "now"}}}
+                ]
+            }
+        },
+        "aggs": {
+            "timeline": {
+                "date_histogram": {
+                    "field": "@timestamp",
+                    "fixed_interval": interval,
+                    "min_doc_count": 0,
+                    "extended_bounds": {"min": f"now-{time_range}", "max": "now"},
+                    "time_zone": "+07:00"
+                },
+                "aggs": {
+                    "response_time_stats": {
+                        "percentiles": {
+                            "field": "response_time_ms",
+                            "percents": [50, 95]
+                        }
+                    },
+                    "errors": {"filter": {"term": {"status.keyword": "error"}}},
+                    "anonymous_split": {"terms": {"field": "is_anonymous", "size": 2}},
+                    "active_users": {"cardinality": {"field": "user_id.keyword"}}
+                }
+            }
+        }
+    }
+
+    try:
+        resp = await opensearch_client.search(index="ai_chat_logs", body=query_body)
+    except Exception as e:
+        print(f"Timeseries Query Error: {e}")
+        return {
+            "messages_over_time": [],
+            "response_time_over_time": [],
+            "errors_over_time": []
+        }
+
+    buckets = resp["aggregations"]["timeline"]["buckets"]
+
+    # Initialize 0-23 buckets
+    hours_data = {h: {"count": 0, "anonymous": 0, "authenticated": 0, "active_users": 0, "p50_sum": 0, "p50_count": 0, "p95_sum": 0, "p95_count": 0, "status_errors": 0} for h in range(24)}
+
+    from datetime import datetime
+    
+    for b in buckets:
+        ts_str = b["key_as_string"]
+        # Parse ISO string to get hour. OpenSearch returns ISO8601 usually.
+        # Assuming format like '2025-12-30T10:00:00.000Z' or similar.
+        # Simplest way: extract T and :
+        try:
+            # Handle standard ISO format
+            dt = datetime.fromisoformat(ts_str.replace('Z', '+00:00'))
+            # Adjust to local time if needed? The user seems to be in +07:00. 
+            # Ideally backend respects server time or passes UTC. 
+            # For now, let's just use the hour from the timestamp provided by OS (usually UTC).
+            # If we want local hour, we need to adjust. 
+            # Let's assume the Dashboard is displaying server time or browser time.
+            # Ideally we pass 'hour' to frontend and frontend formats it?
+            # But here we are aggregating. We must aggregate by LOCAL hour to be meaningful visually?
+            # Or just aggregate by UTC hour and frontend shifts?
+            # Frontend shifting 0-23 buckets is hard if we sum them up.
+            # Let's simple-parse the hour from the string.
+            hour = dt.hour 
+            
+            # Simple aggregation (Summing for now - useful for density map)
+            hours_data[hour]["count"] += int(b["doc_count"])
+            hours_data[hour]["active_users"] += int(b.get("active_users", {}).get("value", 0))
+            hours_data[hour]["status_errors"] += int(b["errors"]["doc_count"])
+            
+            # Anonymous split
+            anon_buckets = b["anonymous_split"]["buckets"]
+            for ab in anon_buckets:
+                is_anon = str(ab["key"]).lower() == "true" or ab["key"] == 1
+                if is_anon:
+                    hours_data[hour]["anonymous"] += int(ab["doc_count"])
+                else:
+                    hours_data[hour]["authenticated"] += int(ab["doc_count"])
+
+        except Exception as e:
+            print(f"Error parsing timestamp {ts_str}: {e}")
+            continue
+
+    # Flatten correctly
+    messages_data = []
+    # logic to reconstruct list
+    for h in range(24):
+        d = hours_data[h]
+        messages_data.append({
+            "timestamp": f"{h:02d}:00", # Use generic hour label
+            "hour_index": h,
+            "count": d["count"],
+            "anonymous": d["anonymous"],
+            "authenticated": d["authenticated"],
+            "active_users": d["active_users"]
+        })
+
+    # Response time stats are harder to average from percentiles (mathematically wrong), 
+    # but for "Trends" broadly, we can just return the raw buckets or skip latency aggregation for this view 
+    # since user asked for Activity charts.
+    # The frontend still expects 'response_time_over_time' for types, but we are removing the Latency chart.
+    # We'll return dummy/empty for response_time to satisfy contract or just raw data.
+    # Actually, we should keep 'response_time_over_time' roughly working or empty if unused.
+    response_time_data = []
+
+    return {
+        "messages_over_time": messages_data,
+        "response_time_over_time": [], # Not used in new charts
+        "errors_over_time": [] # Not used in new charts
+    }
+
+
+# ==============================
+# User Dashboard Endpoints & Simulation
+# ==============================
+
+ADMIN_EMAILS = ["admin@example.com", "debug@example.com", "root@localhost"]
+
+class LoginRequest(BaseModel):
+    email: str
+
+@app.post("/api/auth/login")
+async def login(req: LoginRequest):
+    """
+    Simulated login.
+    If email in ADMIN_EMAILS -> role=admin
+    Else -> role=user
+    """
+    role = "admin" if req.email in ADMIN_EMAILS else "user"
+    # In a real app, we'd issue a JWT. Here we just return the identity.
+    return {
+        "user_id": req.email,
+        "role": role,
+        "token": "simulated-token"
+    }
+
+@app.get("/api/user/summary")
+async def user_dashboard_summary(
+    x_user_id: Optional[str] = Header(None, alias="X-User-ID"),
+    time_range: str = Query("24h", regex="^(24h|7d|30d)$")
+):
+    if not x_user_id:
+        raise HTTPException(status_code=401, detail="Missing X-User-ID header")
+    
+    await get_opensearch_or_raise()
+
+    # Scope query to specific user
+    query_body = {
+        "size": 0,
+        "query": {
+            "bool": {
+                "must": [
+                    {"range": {"@timestamp": {"gte": f"now-{time_range}", "lte": "now"}}},
+                    {"term": {"user_id.keyword": x_user_id}}
+                ]
+            }
+        },
+        "aggs": {
+            "total_messages": {"value_count": {"field": "@timestamp"}},
+            "sessions": {"cardinality": {"field": "session_id.keyword"}},
+            "response_time_stats": {
+                "percentiles": {
+                    "field": "response_time_ms",
+                    "percents": [50]
+                }
+            },
+            "error_count": {"filter": {"term": {"status.keyword": "error"}}}
+        }
+    }
+    
+    resp = await opensearch_client.search(index="ai_chat_logs", body=query_body)
+    aggs = resp["aggregations"]
+    
+    total_messages = aggs["total_messages"]["value"]
+    sessions = aggs["sessions"]["value"]
+    p50 = aggs["response_time_stats"]["values"].get("50.0")
+    response_time_p50_ms = int(round(p50)) if p50 is not None else 0
+    error_count = aggs["error_count"]["doc_count"]
+
+    return {
+        "total_messages": int(total_messages),
+        "sessions": int(sessions),
+        "response_time_p50_ms": response_time_p50_ms,
+        "error_count": int(error_count),
+        "user_id": x_user_id
+    }
+
+@app.get("/api/user/activity")
+async def user_activity(
+    x_user_id: Optional[str] = Header(None, alias="X-User-ID"),
+    limit: int = 10
+):
+    if not x_user_id:
+        raise HTTPException(status_code=401, detail="Missing X-User-ID header")
+
+    await get_opensearch_or_raise()
+
+    query_body = {
+        "size": limit,
+        "sort": [{"@timestamp": {"order": "desc"}}],
+        "query": {
+            "bool": {
+                "must": [
+                    {"term": {"user_id.keyword": x_user_id}}
+                ]
+            }
+        },
+        "_source": ["@timestamp", "session_id", "status", "response_time_ms", "model"]
+    }
+
+    resp = await opensearch_client.search(index="ai_chat_logs", body=query_body)
+    hits = resp["hits"]["hits"]
+    
+    activity = []
+    for hit in hits:
+        src = hit["_source"]
+        activity.append({
+            "timestamp": src.get("@timestamp"),
+            "session_id": src.get("session_id"),
+            "status": src.get("status"),
+            "response_time_ms": src.get("response_time_ms"),
+            "model": src.get("model")
+        })
+
+    return activity
+
+
+# ==============================
+# Token Usage Statistics API
+# ==============================
+
+@app.get("/api/dashboard/token-usage")
+async def dashboard_token_usage(
+    time_range: str = Query("24h", regex="^(24h|7d|30d)$")
+):
+    """Get token usage statistics"""
+    await get_opensearch_or_raise()
+    
+    # Calculate time range
+    if time_range == "24h":
+        gte = "now-24h"
+    elif time_range == "7d":
+        gte = "now-7d"
+    else:
+        gte = "now-30d"
+    
+    query_body = {
+        "size": 0,
+        "query": {
+            "bool": {
+                "must": [
+                    {"range": {"timestamp": {"gte": gte, "lte": "now"}}}
+                ]
+            }
+        },
+        "aggs": {
+            "total_tokens": {"sum": {"field": "total_tokens"}},
+            "total_prompt_tokens": {"sum": {"field": "prompt_tokens"}},
+            "total_completion_tokens": {"sum": {"field": "completion_tokens"}},
+            "total_cost": {"sum": {"field": "cost"}},
+            "avg_tokens_per_request": {"avg": {"field": "total_tokens"}},
+            "total_requests": {"value_count": {"field": "_id"}},
+            "tokens_by_model": {
+                "terms": {"field": "model", "size": 10},
+                "aggs": {
+                    "total_tokens": {"sum": {"field": "total_tokens"}},
+                    "avg_tokens": {"avg": {"field": "total_tokens"}}
+                }
+            },
+            "tokens_by_provider": {
+                "terms": {"field": "provider", "size": 10},
+                "aggs": {
+                    "total_tokens": {"sum": {"field": "total_tokens"}}
+                }
+            }
+        }
+    }
+    
+    try:
+        response = await opensearch_client.search(index="token_usage", body=query_body)
+        aggs = response["aggregations"]
+        
+        return {
+            "total_tokens": int(aggs["total_tokens"]["value"] or 0),
+            "total_prompt_tokens": int(aggs["total_prompt_tokens"]["value"] or 0),
+            "total_completion_tokens": int(aggs["total_completion_tokens"]["value"] or 0),
+            "total_cost": round(aggs["total_cost"]["value"] or 0, 4),
+            "avg_tokens_per_request": round(aggs["avg_tokens_per_request"]["value"] or 0, 1),
+            "total_requests": aggs["total_requests"]["value"],
+            "tokens_by_model": [
+                {
+                    "model": b["key"],
+                    "total_tokens": int(b["total_tokens"]["value"]),
+                    "avg_tokens": round(b["avg_tokens"]["value"], 1),
+                    "requests": b["doc_count"]
+                }
+                for b in aggs["tokens_by_model"]["buckets"]
+            ],
+            "tokens_by_provider": [
+                {
+                    "provider": b["key"],
+                    "total_tokens": int(b["total_tokens"]["value"]),
+                    "requests": b["doc_count"]
+                }
+                for b in aggs["tokens_by_provider"]["buckets"]
+            ]
+        }
+    except Exception as e:
+        print(f"Error fetching token usage: {e}")
+        return {
+            "total_tokens": 0,
+            "total_prompt_tokens": 0,
+            "total_completion_tokens": 0,
+            "total_cost": 0.0,
+            "avg_tokens_per_request": 0.0,
+            "total_requests": 0,
+            "tokens_by_model": [],
+            "tokens_by_provider": []
+        }
+
+
+# ==============================
+# 8) AI Insights API
+# ==============================
+
+@app.get("/api/dashboard/insights")
+async def admin_insights():
+    await get_opensearch_or_raise()
+
+    # Timezone +07:00
+    tz_offset = timezone(timedelta(hours=7))
+    now = datetime.now(tz_offset)
+    
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    yesterday_start = today_start - timedelta(days=1)
+    yesterday_end = today_start
+
+    # Helper for building query
+    def build_stats_query(start_dt, end_dt, include_histogram=False):
+        body = {
+            "size": 0,
+            "query": {
+                "bool": {
+                    "must": [
+                        {"range": {"@timestamp": {"gte": start_dt.isoformat(), "lt": end_dt.isoformat()}}}
+                    ]
+                }
+            },
+            "aggs": {
+                "total_messages": {"value_count": {"field": "_id"}},
+                "active_users": {
+                    "filter": {
+                        "bool": {
+                            "must_not": [{"term": {"is_anonymous": True}}]
+                        }
+                    },
+                    "aggs": {
+                        "count": {"cardinality": {"field": "user_id.keyword"}}
+                    }
+                },
+                "avg_latency": {"avg": {"field": "response_time_ms"}}
+            }
+        }
+        if include_histogram:
+            body["aggs"]["timeline"] = {
+                "date_histogram": {
+                    "field": "@timestamp",
+                    "fixed_interval": "1h",
+                    "time_zone": "+07:00"
+                },
+                "aggs": {
+                    "hourly_users": {"cardinality": {"field": "user_id.keyword"}},
+                    "hourly_msgs": {"value_count": {"field": "_id"}}
+                }
+            }
+        return body
+
+    try:
+        # Run queries in parallel
+        t_query = build_stats_query(today_start, now, include_histogram=True)
+        y_query = build_stats_query(yesterday_start, yesterday_end)
+
+        queries = [
+            opensearch_client.search(index="ai_chat_logs", body=t_query),
+            opensearch_client.search(index="ai_chat_logs", body=y_query)
+        ]
+        
+        results = await asyncio.gather(*queries)
+        t_resp, y_resp = results
+
+        # Parse Today
+        t_aggs = t_resp["aggregations"]
+        t_msgs = t_aggs["total_messages"]["value"]
+        t_users = t_aggs["active_users"]["count"]["value"]
+        t_lat = t_aggs["avg_latency"]["value"] or 0.0
+        
+        # Parse Yesterday
+        y_aggs = y_resp["aggregations"]
+        y_msgs = y_aggs["total_messages"]["value"]
+        y_users = y_aggs["active_users"]["count"]["value"]
+        y_lat = y_aggs["avg_latency"]["value"] or 0.0
+
+        # Calculate % Changes
+        def calc_pct(curr, prev):
+            if prev == 0:
+                return 100.0 if curr > 0 else 0.0
+            return ((curr - prev) / prev) * 100.0
+
+        msg_change = calc_pct(t_msgs, y_msgs)
+        user_change = calc_pct(t_users, y_users)
+        # Latency change not strictly asked as pct for return, but for anomaly logic
+        
+        # Peak Hour Logic
+        peak_hour_str = "N/A"
+        peak_users = 0
+        peak_msgs = 0
+        
+        if "timeline" in t_aggs:
+            buckets = t_aggs["timeline"]["buckets"]
+            max_users = -1
+            best_bucket = None
+            
+            for b in buckets:
+                u_count = b["hourly_users"]["value"]
+                if u_count > max_users:
+                    max_users = u_count
+                    best_bucket = b
+            
+            if best_bucket:
+                # Format key_as_string or key based on timezone
+                # key_as_string e.g. "2026-01-16T10:00:00.000+07:00"
+                ts_str = best_bucket.get("key_as_string", "")
+                try:
+                    # Fix: Handle ISO format correctly, removing Z if present to avoid confusion if +07:00 is not standard
+                    ts_clean = ts_str.replace("Z", "+00:00") 
+                    p_dt = datetime.fromisoformat(ts_clean)
+                    peak_hour_str = f"{p_dt.hour:02d}:00"
+                except:
+                    peak_hour_str = ts_str
+                
+                peak_users = max_users
+                peak_msgs = best_bucket["hourly_msgs"]["value"]
+
+        # Generate Insights Text & Logic
+        usage_text = ""
+        usage_badge = "gray"
+        
+        # 1. Usage Logic
+        if t_msgs == 0:
+            usage_badge = "gray"
+            usage_text = "No activity recorded yet today."
+        else:
+            if msg_change > 0:
+                usage_badge = "green"
+                usage_text = f"Total message volume has increased by {abs(int(msg_change))}% today compared to yesterday."
+            elif msg_change < 0:
+                usage_badge = "red"
+                usage_text = f"Total message volume has decreased by {abs(int(msg_change))}% today compared to yesterday."
+            else:
+                usage_badge = "gray"
+                usage_text = "Message volume is stable compared to yesterday."
+
+        # 2. Peak Hour Logic
+        peak_text = ""
+        peak_badge = "gray"
+        if peak_hour_str == "N/A" or peak_users == 0:
+             peak_hour_str = "No Peak Data"
+             peak_text = "No usage data available to determine peak hours today."
+             peak_badge = "gray"
+        else:
+             peak_badge = "gray"
+             peak_text = f"Highest activity observed at {peak_hour_str} with {peak_users} concurrent active users."
+
+        # 3. Latency Logic
+        is_anomaly = False
+        anomaly_text = "Latency is stable."
+        latency_badge = "gray"
+
+        if t_lat == 0:
+            latency_badge = "gray"
+            anomaly_text = "No latency data available yet"
+        elif t_lat > y_lat:
+            diff_ms = t_lat - y_lat
+            pct_inc = calc_pct(t_lat, y_lat)
+            
+            if pct_inc >= 20 and diff_ms >= 500:
+                is_anomaly = True
+                latency_badge = "red"
+                anomaly_text = f"Latency increased by {int(pct_inc)}% (+{int(diff_ms)}ms) vs yesterday (Anomaly Detected)."
+            else:
+                latency_badge = "gray" 
+                anomaly_text = f"Latency increased slightly by {int(diff_ms)}ms."
+        elif t_lat < y_lat:
+             latency_badge = "green"
+             anomaly_text = "Latency improved compared to yesterday."
+        else:
+             latency_badge = "gray"
+             anomaly_text = "Latency is stable."
+
+        # Badges Dictionary
+        badges = {
+            "usage": usage_badge,
+            "latency": latency_badge,
+            "peak": peak_badge
+        }
+             
+
+
+        return {
+            "total_messages_today": int(t_msgs),
+            "total_messages_yesterday": int(y_msgs),
+            "unique_users_today": int(t_users),
+            "unique_users_yesterday": int(y_users),
+            "avg_latency_today_ms": round(t_lat, 2),
+            "avg_latency_yesterday_ms": round(y_lat, 2),
+            "msg_change_pct": round(msg_change, 1),
+            "user_change_pct": round(user_change, 1),
+            "peak_hour_today": peak_hour_str,
+            "peak_hour_users": int(peak_users),
+            "peak_hour_messages": int(peak_msgs),
+            "latency_anomaly": is_anomaly,
+            "latency_insight_text": anomaly_text,
+            "usage_insight_text": usage_text,
+            "peak_insight_text": peak_text,
+            "badges": badges
+        }
+
+    except Exception as e:
+        print(f"Insights Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 # ==============================
 # Uvicorn entrypoint

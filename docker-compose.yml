@@ -1,0 +1,84 @@
+version: '3.8'
+
+services:
+  # Backend Service (FastAPI)
+  api:
+    build: .
+    container_name: og-extractor-api
+    # We expose 10000 internally to the network, and map it to host if you want direct access
+    # But primarily the frontend will talk to it via docker network
+    ports:
+      - "10000:10000"
+    environment:
+      - OPENSEARCH_URL=http://opensearch-node:9200
+      - OPENSEARCH_USERNAME=
+      - OPENSEARCH_PASSWORD=
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      - opensearch-node
+    networks:
+      - og-network
+
+  # Frontend Service (React)
+  frontend:
+
+    build: ./frontend
+    container_name: og-extractor-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    networks:
+      - og-network
+
+  # Search Engine
+  opensearch-node:
+    image: opensearchproject/opensearch:latest
+    container_name: opensearch-node
+    environment:
+      - cluster.name=og-cluster
+      - node.name=opensearch-node
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      - DISABLE_SECURITY_PLUGIN=true
+      - http.cors.enabled=true
+      - http.cors.allow-origin=*
+      - http.cors.allow-headers=Authorization,X-Requested-With,Content-Type,Content-Length
+      - http.cors.allow-methods=OPTIONS,HEAD,GET,POST,PUT,DELETE
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    networks:
+      - og-network
+
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:latest
+    container_name: opensearch-dashboards
+    ports:
+      - "5601:5601"
+    environment:
+      OPENSEARCH_HOSTS: '["http://opensearch-node:9200"]'
+      DISABLE_SECURITY_DASHBOARDS_PLUGIN: "true"
+    depends_on:
+      - opensearch-node
+    networks:
+      - og-network
+
+volumes:
+  opensearch-data:
+
+
+networks:
+  og-network:
+    driver: bridge
