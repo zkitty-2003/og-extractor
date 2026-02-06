@@ -1,8 +1,12 @@
 import axios from 'axios';
 
 // Defaults to relative path so it works with Nginx proxy
+// In production (Docker), we serve from the same origin, so use relative path ''
+// In development, we use the local backend port 10001
+const baseURL = import.meta.env.PROD ? '' : 'http://localhost:10001';
+
 const api = axios.create({
-    baseURL: 'http://localhost:10001',
+    baseURL: baseURL,
     headers: {
         'Content-Type': 'application/json',
     },
