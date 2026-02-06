@@ -251,6 +251,10 @@ function App() {
           content: m.content,
         }));
 
+        // Show thinking animation
+        const thinkingMsg = { role: 'assistant', isThinking: true };
+        setMessages([...newMessages, thinkingMsg]);
+
         const res = await sendMessage(
           text,
           currentChatId,

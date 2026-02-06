@@ -1324,3 +1324,49 @@ textarea {
     transform: translateY(0);
   }
 }
+/* =========================================
+   Collapsible Settings Animation
+   ========================================= */
+
+.settings-collapsible {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-height 300ms ease-out, opacity 300ms ease-out, margin-top 300ms ease-out;
+}
+
+.settings-collapsible.open {
+  max-height: 1200px;
+  /* Large enough to fit content */
+  opacity: 1;
+  margin-top: 20px;
+}
+
+/* Toggle Settings Button */
+.toggle-settings-btn {
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: all 0.2s ease;
+  width: 100%;
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+}
+
+.toggle-settings-btn:hover {
+  filter: brightness(1.1);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(139, 92, 246, 0.4);
+}
+
+.toggle-settings-btn:active {
+  transform: translateY(0);
+}

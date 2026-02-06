@@ -31,12 +31,18 @@ export default function UserDashboard() {
     const [activity, setActivity] = useState<ActivityLog[]>([])
 
     const fetchData = useCallback(async () => {
-        if (!userId) return
+        if (!userId) {
+            setLoading(false)
+            return
+        }
 
         setLoading(true)
         try {
             // Use user-scoped endpoints
-            const config = { headers: { 'X-User-ID': userId } }
+            const config = {
+                headers: { 'X-User-ID': userId },
+                timeout: 5000 // 5 second timeout
+            }
 
             const [sumRes, actRes] = await Promise.all([
                 axios.get(`http://127.0.0.1:10001/api/user/summary?time_range=${timeRange}`, config),
@@ -107,7 +113,27 @@ export default function UserDashboard() {
         )
     }
 
-    if (!summary) return null
+    if (!summary) {
+        return (
+            <div className="flex h-64 flex-col items-center justify-center gap-4 text-center">
+                <div className="rounded-full bg-slate-100 p-4">
+                    <Activity className="h-8 w-8 text-slate-400" />
+                </div>
+                <div className="space-y-1">
+                    <h3 className="text-lg font-semibold text-slate-900">Unable to load dashboard</h3>
+                    <p className="text-sm text-slate-500">We couldn't fetch your analytics data at this time.</p>
+                    <p className="text-xs text-red-500 font-mono mt-2">Check console for API errors (Port 10001)</p>
+                </div>
+                <button
+                    onClick={fetchData}
+                    className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow transition-colors hover:bg-indigo-700"
+                >
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Retry Connection
+                </button>
+            </div>
+        )
+    }
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500">

@@ -19,13 +19,24 @@ const ExportButton = ({ messages, chatId }) => {
 
     return (
         <button
+            type="button"
             className="export-btn-primary"
             onClick={handleExport}
             disabled={isExporting} // Only disable when exporting
             title="Export to Excel"
-            style={{ marginRight: '10px', display: 'flex' }}
+            style={{
+                marginRight: '10px',
+                display: 'flex',
+                flexShrink: 0,
+                alignItems: 'center',
+                zIndex: 10
+            }}
         >
-            {isExporting && <i className="fas fa-spinner fa-spin" style={{ marginRight: '5px' }}></i>}
+            {isExporting ? (
+                <i className="fas fa-spinner fa-spin" style={{ marginRight: '5px' }}></i>
+            ) : (
+                <i className="fas fa-file-excel" style={{ marginRight: '5px' }}></i>
+            )}
             <span>Export Excel</span>
         </button>
     );

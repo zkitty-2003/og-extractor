@@ -8,7 +8,6 @@ const Sidebar = ({
     onDeleteChat,
     currentUser,
     onLoginClick,
-    onLogoutClick,
     currentTheme,
     onThemeChange,
     isSidebarOpen,

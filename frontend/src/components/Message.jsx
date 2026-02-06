@@ -77,7 +77,7 @@ const Message = ({ message, currentUser }) => {
                                 <ReactMarkdown
                                     remarkPlugins={[remarkGfm]}
                                     components={{
-                                        table: ({ node, ...props }) => <div style={{ overflowX: 'auto' }}><table {...props} /></div>
+                                        table: ({ ...props }) => <div style={{ overflowX: 'auto' }}><table {...props} /></div>
                                     }}
                                 >
                                     {mainText}

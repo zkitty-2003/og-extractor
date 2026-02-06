@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { googleLogin, fetchOpenRouterModels } from '../utils/api';
+import OpenRouterSettingsCard from './OpenRouterSettingsCard';
 
 const LoginOverlay = ({ isOpen, onClose, currentUser, onLogout, onLoginSuccess }) => {
     // OpenRouter State
@@ -10,6 +11,9 @@ const LoginOverlay = ({ isOpen, onClose, currentUser, onLogout, onLoginSuccess }
     const [modelSearch, setModelSearch] = useState('');
     const [isLoadingModels, setIsLoadingModels] = useState(false);
     const [statusMsg, setStatusMsg] = useState('');
+
+    // Collapsible Settings State
+    const [showSettings, setShowSettings] = useState(false);
 
     useEffect(() => {
         if (isOpen) {
@@ -98,10 +102,7 @@ const LoginOverlay = ({ isOpen, onClose, currentUser, onLogout, onLoginSuccess }
         setTimeout(() => setStatusMsg(''), 3000);
     };
 
-    const filteredModels = models.filter(m =>
-        m.id.toLowerCase().includes(modelSearch.toLowerCase()) ||
-        (m.name && m.name.toLowerCase().includes(modelSearch.toLowerCase()))
-    );
+
 
     if (!isOpen) return null;
 
@@ -117,11 +118,48 @@ const LoginOverlay = ({ isOpen, onClose, currentUser, onLogout, onLoginSuccess }
 
                 {/* === User Profile Section === */}
                 {currentUser ? (
-                    <div className="profile-section" style={{ marginBottom: '40px' }}>
+                    <div className="profile-section" style={{ marginBottom: '40px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                         <img src={currentUser.picture} className="profile-avatar-large" alt="Profile" />
                         <div className="profile-name-large">{currentUser.name}</div>
                         <div className="profile-email-large">{currentUser.email}</div>
 
+                        {/* Toggle Buttons */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%', maxWidth: '420px', marginTop: '20px' }}>
+                            <button
+                                className="toggle-settings-btn"
+                                onClick={() => setShowSettings(!showSettings)}
+                            >
+                                <i className={`fas ${showSettings ? 'fa-times' : 'fa-cog'}`}></i>
+                                {showSettings ? 'Close Settings' : 'OpenRouter Settings'}
+                            </button>
+                            <button
+                                className="sign-out-btn"
+                                onClick={onLogout}
+                                style={{ width: '100%', backgroundColor: '#ef4444' }}
+                            >
+                                <i className="fas fa-sign-out-alt"></i> Sign Out
+                            </button>
+                        </div>
+
+                        {/* Collapsible Settings */}
+                        <div className={`settings-collapsible ${showSettings ? 'open' : ''}`}>
+                            <OpenRouterSettingsCard
+                                apiKey={apiKey}
+                                setApiKey={setApiKey}
+                                showKey={showKey}
+                                setShowKey={setShowKey}
+                                models={models}
+                                selectedModel={selectedModel}
+                                setSelectedModel={setSelectedModel}
+                                modelSearch={modelSearch}
+                                setModelSearch={setModelSearch}
+                                isLoadingModels={isLoadingModels}
+                                statusMsg={statusMsg}
+                                handleFetchModels={handleFetchModels}
+                                handleSaveSettings={handleSaveSettings}
+                                handleClearSettings={handleClearSettings}
+                            />
+                        </div>
                     </div>
                 ) : (
                     <div className="login-section" style={{ marginBottom: '40px' }}>
@@ -131,122 +169,7 @@ const LoginOverlay = ({ isOpen, onClose, currentUser, onLogout, onLoginSuccess }
                     </div>
                 )}
 
-                {/* === OpenRouter Settings Section === */}
-                <div className="settings-card">
-                    <div className="settings-header">
-                        <h2><i className="fas fa-robot"></i> OpenRouter Settings</h2>
-                    </div>
 
-                    {/* API Key Input */}
-                    <div className="form-group">
-                        <label className="form-label">API Key</label>
-                        <div className="input-with-icon">
-                            <input
-                                type={showKey ? "text" : "password"}
-                                value={apiKey}
-                                onChange={(e) => setApiKey(e.target.value)}
-                                placeholder="sk-or-..."
-                                className="settings-input"
-                            />
-                            <button
-                                className="toggle-visibility-btn"
-                                onClick={() => setShowKey(!showKey)}
-                                title={showKey ? "Hide API Key" : "Show API Key"}
-                            >
-                                <i className={`fas fa-eye${showKey ? '-slash' : ''}`}></i>
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Load Models Button */}
-                    <button
-                        onClick={() => handleFetchModels(apiKey)}
-                        disabled={!apiKey || isLoadingModels}
-                        className={`action-btn ${isLoadingModels ? 'btn-secondary' : 'btn-secondary'}`}
-                        style={{ marginBottom: '20px', justifyContent: 'center' }}
-                    >
-                        {isLoadingModels ? (
-                            <><i className="fas fa-circle-notch fa-spin"></i> Loading Models...</>
-                        ) : (
-                            <><i className="fas fa-sync-alt"></i> Load Models from OpenRouter</>
-                        )}
-                    </button>
-
-                    {/* Model Selection */}
-                    {models.length > 0 && (
-                        <div className="models-container">
-                            <div className="form-group">
-                                <label className="form-label">Select Model</label>
-
-                                {/* Filter Input */}
-                                <div className="input-with-icon" style={{ marginBottom: '10px' }}>
-                                    <i className="fas fa-search input-icon-left"></i>
-                                    <input
-                                        type="text"
-                                        placeholder="Filter models..."
-                                        value={modelSearch}
-                                        onChange={(e) => setModelSearch(e.target.value)}
-                                        className="settings-input with-left-icon"
-                                    />
-                                </div>
-
-                                {/* Select Dropdown */}
-                                <select
-                                    value={selectedModel}
-                                    onChange={(e) => setSelectedModel(e.target.value)}
-                                    className="settings-input"
-                                    style={{ cursor: 'pointer' }}
-                                >
-                                    <option value="">-- Choose a Model --</option>
-                                    {filteredModels.map(m => (
-                                        <option key={m.id} value={m.id}>
-                                            {m.id} ({m.pricing?.prompt === "0" ? 'Free' : 'Paid'})
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Action Buttons */}
-                    <div style={{ display: 'flex', gap: '15px', marginTop: '25px' }}>
-                        <button
-                            onClick={handleSaveSettings}
-                            className="action-btn btn-primary"
-                        >
-                            <i className="fas fa-save"></i> Save
-                        </button>
-                        <button
-                            onClick={handleClearSettings}
-                            className="action-btn btn-danger"
-                            style={{ width: 'auto', padding: '12px 20px' }}
-                            title="Clear all settings"
-                        >
-                            <i className="fas fa-trash-alt"></i>
-                        </button>
-                    </div>
-
-                    {/* Status Message */}
-                    {statusMsg && (
-                        <div style={{ textAlign: 'center' }}>
-                            <div className={`status-badge ${statusMsg.includes('Failed') ? 'status-error' : 'status-success'}`}>
-                                <i className={`fas ${statusMsg.includes('Failed') ? 'fa-exclamation-circle' : 'fa-check-circle'}`}></i>
-                                {statusMsg}
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-                {/* Sign Out Button (Moved to Bottom) */}
-                {currentUser && (
-                    <button
-                        className="sign-out-btn"
-                        onClick={onLogout}
-                        style={{ marginTop: '20px', width: '100%', maxWidth: '420px', backgroundColor: '#ef4444' }}
-                    >
-                        <i className="fas fa-sign-out-alt"></i> Sign Out
-                    </button>
-                )}
 
             </div>
         </div>

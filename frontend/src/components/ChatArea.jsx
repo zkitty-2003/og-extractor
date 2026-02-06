@@ -1,12 +1,11 @@
 import React, { useEffect, useRef } from 'react';
 import Message from './Message';
 import ExportButton from './ExportButton';
-import { exportChatToExcel } from '../utils/exportChat';
+
 
 const ChatArea = ({
     messages,
     currentChatId,
-    isSidebarOpen,
     onToggleSidebar,
     onSummarize,
     onSendMessage,
@@ -48,15 +47,7 @@ const ChatArea = ({
         }
     };
 
-    const handleDirectExport = () => {
-        try {
-            console.log('Attempting export with messages:', messages);
-            exportChatToExcel(messages, currentChatId);
-        } catch (error) {
-            console.error('Export failed:', error);
-            alert(`Export failed: ${error.message}\nCheck console for details.`);
-        }
-    };
+
 
     return (
         <div className="main-content">
@@ -66,13 +57,7 @@ const ChatArea = ({
                     <span>ABDUL Chat</span>
                 </div>
                 <div className="header-right">
-                    <button
-                        className="export-btn-primary"
-                        onClick={handleDirectExport}
-                        style={{ display: 'flex', marginRight: '10px' }}
-                    >
-                        <span>Export Excel</span>
-                    </button>
+                    <ExportButton messages={messages} chatId={currentChatId} />
                     <button className="summary-btn-primary" title="สรุปบทสนทนานี้คุยเรื่องอะไร" onClick={onSummarize}>
                         <i className="fas fa-list"></i>
                         <span>สรุปแชทนี้</span>
