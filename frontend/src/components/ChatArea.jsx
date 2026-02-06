@@ -72,7 +72,7 @@ const ChatArea = ({
                 {messages.length === 0 ? (
                     <div className="message ai-message welcome-message">
                         <div className="avatar">
-                            <img src="/cat_avatar.png" alt="AI" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                            <img src={`${import.meta.env.BASE_URL}cat_avatar.png`} alt="AI" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
                         </div>
                         <div className="bubble">
                             <div className="content">

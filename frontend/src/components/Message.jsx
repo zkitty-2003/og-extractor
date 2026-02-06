@@ -45,7 +45,7 @@ const Message = ({ message, currentUser }) => {
                         </div>
                     )
                 ) : (
-                    <img src="/cat_avatar.png" alt="AI" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                    <img src={`${import.meta.env.BASE_URL}cat_avatar.png`} alt="AI" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
                 )}
             </div>
 
