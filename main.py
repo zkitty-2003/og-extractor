@@ -25,9 +25,15 @@ load_dotenv()
 app = FastAPI()
 
 # Mount frontend static files
-# Ensure 'dist' directory exists or handle it gracefully if running locally without build
-if os.path.isdir("dist"):
-    app.mount("/ui", StaticFiles(directory="dist", html=True), name="ui")
+# Debug: Print current directory structure
+print(f"Current working directory: {os.getcwd()}")
+if os.path.exists("dist"):
+    print(f"Contents of dist: {os.listdir('dist')}")
+else:
+    print("WARNING: 'dist' directory not found!")
+
+# Mount unconditionally to verify behavior (will error if missing, appearing in logs)
+app.mount("/ui", StaticFiles(directory="dist", html=True), name="ui")
 
 @app.get("/")
 def root():
