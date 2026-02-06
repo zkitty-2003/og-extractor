@@ -58,6 +58,8 @@ const ChatArea = ({
                 </div>
                 <div className="header-right">
                     <ExportButton messages={messages} chatId={currentChatId} />
+
+
                     <button className="summary-btn-primary" title="สรุปบทสนทนานี้คุยเรื่องอะไร" onClick={onSummarize}>
                         <i className="fas fa-list"></i>
                         <span>สรุปแชทนี้</span>

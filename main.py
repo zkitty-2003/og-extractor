@@ -3,14 +3,14 @@ from datetime import datetime, timezone, timedelta
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from urllib.parse import urlparse
 
-from fastapi.responses import Response
+from fastapi.responses import Response, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, HttpUrl
-
+import os
 from typing import Optional, List, Dict, Any, Tuple
 from bs4 import BeautifulSoup
 import httpx
-import os
 import uuid
 import json
 import asyncio
@@ -22,11 +22,17 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# ==============================
-# FastAPI setup
-# ==============================
-
 app = FastAPI()
+
+# Mount frontend static files
+# Ensure 'dist' directory exists or handle it gracefully if running locally without build
+if os.path.isdir("dist"):
+    app.mount("/ui", StaticFiles(directory="dist", html=True), name="ui")
+
+@app.get("/")
+def root():
+    return RedirectResponse(url="/ui")
+
 security = HTTPBearer(auto_error=False)
 
 # Global OpenSearch Client
@@ -1547,6 +1553,42 @@ async def user_activity(
 # ==============================
 # Token Usage Statistics API
 # ==============================
+
+# ==============================
+# Dashboard Summary & Timeseries API
+# ==============================
+
+@app.get("/api/dashboard/summary")
+async def dashboard_summary(
+    time_range: str = Query("24h", regex="^(24h|7d|30d)$")
+):
+    """Get dashboard summary metrics"""
+    # STUB: Return safe defaults for now to fix connection error
+    return {
+        "total_messages": 0,
+        "active_users": 0,
+        "sessions": 0,
+        "response_time_p50_ms": 0,
+        "response_time_p95_ms": 0,
+        "error_count": 0,
+        "error_rate_pct": 0,
+        "top_users": [],
+        "top_models": [],
+        "anonymous_messages": 0,
+        "anonymous_rate_pct": 0
+    }
+
+@app.get("/api/dashboard/timeseries")
+async def dashboard_timeseries(
+    time_range: str = Query("24h", regex="^(24h|7d|30d)$")
+):
+    """Get dashboard timeseries data"""
+    # STUB: Return safe defaults
+    return {
+        "messages_over_time": [],
+        "response_time_over_time": [],
+        "errors_over_time": []
+    }
 
 @app.get("/api/dashboard/token-usage")
 async def dashboard_token_usage(

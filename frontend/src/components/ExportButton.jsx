@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
-import { exportChatToExcel } from '../utils/exportChat';
+
 
 const ExportButton = ({ messages, chatId }) => {
     const [isExporting, setIsExporting] = useState(false);
+
+    console.log('ExportButton rendering');
 
     const handleExport = async () => {
         setIsExporting(true);
         try {
             await new Promise(resolve => setTimeout(resolve, 500));
+            const { exportChatToExcel } = await import('../utils/exportChat');
             exportChatToExcel(messages, chatId);
         } catch (error) {
             console.error('Export failed:', error);
