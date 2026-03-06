@@ -8,3 +8,4 @@ google-auth
 requests
 opensearch-py[async]
 python-dotenv
+pypdf
