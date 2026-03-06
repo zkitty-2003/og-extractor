@@ -863,9 +863,14 @@ def parse_file_content(file_data: Dict[str, str]) -> str:
         
         if "pdf" in file_type:
             pdf_reader = PdfReader(io.BytesIO(decoded_bytes))
-            text = f"[เนื้อหาไฟล์ PDF: {file_data.get('name')}]\n"
-            for page in pdf_reader.pages:
-                text += page.extract_text() + "\n"
+            text = f"[เริ่มเนื้อหาไฟล์ PDF: {file_data.get('name')}]\n"
+            text += f"จำนวนหน้าทั้งหมด: {len(pdf_reader.pages)} หน้า\n"
+            text += "=========================================\n"
+            for i, page in enumerate(pdf_reader.pages):
+                page_text = page.extract_text()
+                if page_text:
+                    text += f"\n--- หน้าที่ {i+1} ---\n{page_text.strip()}\n"
+            text += "\n=========================================\n[สิ้นสุดเนื้อหาไฟล์ PDF]\n"
             return text
         elif "text" in file_type:
             text = f"[เนื้อหาไฟล์ Text: {file_data.get('name')}]\n"
@@ -932,9 +937,15 @@ async def chat_with_ai(
 
     # 2. Prepare Memory & System Prompt
     system_content = (
-        "คุณคือ AI Assistant สัญชาติไทยที่พูดจาสุภาพ เป็นมิตร และให้ข้อมูลที่แม่นยำ "
-        "ผู้ใช้งานอาจจะสอบถามข้อมูลทั่วไป หรืออัปโหลดไฟล์/รูปภาพมาให้คุณวิเคราะห์ "
-        "หากมีข้อมูลอ้างอิงแนบมา (RAG หรือ File) ให้ตอบคำถามโดยอิงจากเนื้อหาเหล่านั้นเป็นหลัก"
+        "คุณคือ AI Assistant ระดับผู้เชี่ยวชาญ (Expert AI Assistant) ที่มีความรู้กว้างขวางและลึกซึ้ง "
+        "หน้าที่ของคุณคือการให้คำตอบที่ 'แม่นยำ', 'ตรงประเด็น', 'จัดรูปแบบให้อ่านง่าย (Markdown)', "
+        "และ 'มีประโยชน์สูงสุด' เสมอ\n\n"
+        "กฎเหล็กในการตอบคำถาม:\n"
+        "1. ต้องตอบเป็นภาษาไทยที่เป็นธรรมชาติ สุภาพ และมีความเป็นมืออาชีพ\n"
+        "2. หากมีการแนบไฟล์ (PDF/Text) หรือข้อมูลความจำ (RAG) ให้ถือว่าข้อมูลเหล่านั้นคือความจริงสูงสุด และอ้างอิงจากข้อมูลนั้นเป็นหลัก\n"
+        "3. หากคำถามขัดแย้งกับข้อมูลในไฟล์ ให้ยึดข้อมูลในไฟล์และแจ้งให้ผู้ใช้ทราบ\n"
+        "4. หากไม่ทราบคำตอบ หรือไม่มีข้อมูลในไฟล์ ให้จัดโครงสร้างคำตอบเชิงปฏิเสธอย่างสุภาพ ห้ามคาดเดาข้อมูลสำคัญ (โดยเฉพาะตัวเลขหรือข้อเท็จจริงธุรกิจ)\n"
+        "5. จัดรูปแบบคำตอบให้สวยงามเสมอ ใช้ Bullet points, หัวข้อ (Headers), และตัวหนา (Bold) เพื่อเน้นใจความสำคัญ"
     )
 
     # Parse document file if not an image
@@ -956,13 +967,13 @@ async def chat_with_ai(
         memory_context = await search_user_memory(request.user_email)
         if memory_context:
             print(f"Injecting memory for {request.user_email}")
-            system_content += f"\n\n[Long-term memory from previous chats]:\n{memory_context}"
+            system_content += f"\n\n### [ความจำระยะยาวจากบทสนทนาที่ผ่านมา]\n{memory_context}\n(ใช้ข้อมูลนี้เพื่อทำความรู้จักผู้ใช้และบริบทเดิม แต่อย่าตอบซ้ำถ้าผู้ใช้ไม่ได้ถาม)"
 
     # 2.5 Perform RAG Context Retrieval (New Step)
     rag_context = await _retrieve_context(request.message, request.user_email)
     if rag_context:
         print(f"Injecting RAG context for {request.user_email}")
-        system_content += f"\n{rag_context}"
+        system_content += f"\n\n### [ข้อมูลเนื้อหาจากการค้นหา (RAG)]\n{rag_context}\n(ใช้ข้อมูลนี้ตอบคำถามปัจจุบันเป็นหลัก)"
 
     # 3. Construct Messages
     messages = request.history or []
