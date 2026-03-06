@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Message from './Message';
 import ExportButton from './ExportButton';
 
@@ -17,6 +17,8 @@ const ChatArea = ({
     // ... existing refs and effects ...
     const chatContainerRef = useRef(null);
     const inputRef = useRef(null);
+    const fileInputRef = useRef(null);
+    const [selectedFile, setSelectedFile] = useState(null);
 
     // Auto scroll to bottom
     useEffect(() => {
@@ -34,9 +36,13 @@ const ChatArea = ({
     const handleSend = () => {
         if (!inputRef.current) return;
         const text = inputRef.current.value.trim();
-        if (text) {
-            onSendMessage(text);
+        if (text || selectedFile) {
+            onSendMessage(text, selectedFile);
             inputRef.current.value = '';
+            setSelectedFile(null);
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+            }
         }
     };
 
@@ -44,6 +50,13 @@ const ChatArea = ({
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             handleSend();
+        }
+    };
+
+    const handleFileSelect = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            setSelectedFile(file);
         }
     };
 
@@ -90,14 +103,23 @@ const ChatArea = ({
 
             <div className="input-area">
                 {!isImageMode && (
-                    <div className="image-trigger-container">
+                    <div className="image-trigger-container" style={{ display: 'flex', gap: '10px' }}>
                         <button id="create-image-trigger" onClick={() => onToggleImageMode(true)}>
                             <i className="fas fa-image"></i> Create image
                         </button>
+                        <button id="upload-file-trigger" style={{ background: '#f0f0f0', border: '1px solid #ddd', borderRadius: '15px', padding: '5px 15px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }} onClick={() => fileInputRef.current?.click()}>
+                            <i className="fas fa-paperclip"></i> แนบไฟล์
+                        </button>
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            style={{ display: 'none' }}
+                            onChange={handleFileSelect}
+                        />
                     </div>
                 )}
 
-                <div className={`input-wrapper ${isImageMode ? 'image-mode' : ''}`} id="input-wrapper">
+                <div className={`input-wrapper ${isImageMode ? 'image-mode' : ''}`} id="input-wrapper" style={{ flexDirection: 'column' }}>
                     {isImageMode && (
                         <div className="image-mode-badge" onClick={() => onToggleImageMode(false)}>
                             <i className="fas fa-times"></i>
@@ -105,18 +127,29 @@ const ChatArea = ({
                         </div>
                     )}
 
-                    <textarea
-                        ref={inputRef}
-                        id="message-input"
-                        placeholder={isBusy ? "Ai is thinking..." : (isImageMode ? "Describe an image..." : "Send a message...")}
-                        rows="1"
-                        onKeyDown={handleKeyDown}
-                        disabled={isBusy}
-                    ></textarea>
+                    {selectedFile && (
+                        <div className="file-preview-badge" style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 10px', background: '#e0f7fa', borderRadius: '10px', margin: '5px 15px 0 15px', width: 'fit-content', fontSize: '12px' }}>
+                            <i className="fas fa-file"></i>
+                            <span>{selectedFile.name}</span>
+                            <i className="fas fa-times" style={{ cursor: 'pointer', marginLeft: '5px' }} onClick={() => { setSelectedFile(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}></i>
+                        </div>
+                    )}
 
-                    <button id="send-btn" className="input-action-btn" onClick={handleSend} disabled={isBusy}>
-                        <i className="fas fa-paper-plane"></i>
-                    </button>
+                    <div style={{ display: 'flex', width: '100%', alignItems: 'center' }}>
+                        <textarea
+                            ref={inputRef}
+                            id="message-input"
+                            placeholder={isBusy ? "Ai is thinking..." : (isImageMode ? "Describe an image..." : "Send a message...")}
+                            rows="1"
+                            onKeyDown={handleKeyDown}
+                            disabled={isBusy}
+                            style={{ flexGrow: 1, border: 'none', outline: 'none', padding: '15px' }}
+                        ></textarea>
+
+                        <button id="send-btn" className="input-action-btn" onClick={handleSend} disabled={isBusy} style={{ marginRight: '10px' }}>
+                            <i className="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
                 </div>
                 <div className="disclaimer">ABDUL Chat may produce inaccurate information.</div>
             </div>

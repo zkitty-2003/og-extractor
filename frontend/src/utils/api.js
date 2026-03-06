@@ -29,7 +29,7 @@ function getAuthConfig(token) {
     return {};
 }
 
-export const sendMessage = async (message, chatId, userEmail, userAvatar, history, model, token) => {
+export const sendMessage = async (message, chatId, userEmail, userAvatar, history, model, fileData, token) => {
     return api.post(
         '/chat',
         {
@@ -39,6 +39,7 @@ export const sendMessage = async (message, chatId, userEmail, userAvatar, histor
             user_avatar: userAvatar,
             history,
             model,
+            file: fileData
         },
         getAuthConfig(token)
     );

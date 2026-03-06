@@ -32,7 +32,7 @@ function App() {
     localStorage.getItem(OPENROUTER_KEY_STORAGE) || '';
 
   const getOpenRouterModel = () =>
-    localStorage.getItem(OPENROUTER_MODEL_STORAGE) || 'google/gemma-3-27b-it:free';
+    localStorage.getItem(OPENROUTER_MODEL_STORAGE) || 'openrouter/free';
 
   const getUserKeySuffix = (user = currentUser) => {
     const raw =
@@ -193,11 +193,35 @@ function App() {
   };
 
   // ===== Core: Send Message =====
-  const handleSendMessage = async (text) => {
+  const handleSendMessage = async (text, file = null) => {
     if (isBusy) return;
     setIsBusy(true);
 
-    const userMsg = { role: 'user', content: text, currentUserForMsg: currentUser };
+    let filePayload = null;
+    let displayContent = text;
+
+    if (file) {
+      displayContent = `[แนบไฟล์: ${file.name}]\n${text}`;
+      try {
+        const base64Content = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          // Extract just the Base64 data (after the comma)
+          reader.onload = () => resolve(reader.result.split(',')[1]);
+          reader.onerror = error => reject(error);
+          reader.readAsDataURL(file);
+        });
+
+        filePayload = {
+          name: file.name,
+          type: file.type || 'application/octet-stream',
+          data: base64Content
+        };
+      } catch (err) {
+        console.error("Error reading file:", err);
+      }
+    }
+
+    const userMsg = { role: 'user', content: displayContent, currentUserForMsg: currentUser };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
     updateHistory(newMessages);
@@ -256,12 +280,13 @@ function App() {
         setMessages([...newMessages, thinkingMsg]);
 
         const res = await sendMessage(
-          text,
+          text,  // Send the raw text to the backend, let the backend append context
           currentChatId,
           currentUser?.email || null,  // ✅ Explicitly null for anonymous users
           currentUser?.picture || null, // ✅ User avatar
           historyForApi,
           getOpenRouterModel(), // ✅ Use selected model (or default)
+          filePayload, // ✅ Pass the file payload
           token
         );
 

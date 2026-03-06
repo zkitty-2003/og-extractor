@@ -1,5 +1,13 @@
 import * as XLSX from 'xlsx';
 
+// Polyfill/Shim check if needed for some environments
+const getXLSX = () => {
+    if (typeof XLSX !== 'undefined') return XLSX;
+    // Fallback if imported as default
+    if (window.XLSX) return window.XLSX;
+    return null;
+};
+
 /**
  * Chat Message Format
  * @typedef {Object} ChatMessage
@@ -29,8 +37,15 @@ export function exportChatToExcel(messages, chatId = 'unknown') {
         'Chat ID': chatId
     }));
 
+    const lib = getXLSX();
+    if (!lib) {
+        console.error('XLSX library not found. Make sure "xlsx" is installed.');
+        alert('ระบบ Excel ขัดข้อง: ไม่พบไลบรารีส่งออก');
+        return;
+    }
+
     // Create worksheet
-    const worksheet = XLSX.utils.json_to_sheet(data);
+    const worksheet = lib.utils.json_to_sheet(data);
 
     // Set column widths
     const columnWidths = [
@@ -43,19 +58,27 @@ export function exportChatToExcel(messages, chatId = 'unknown') {
     worksheet['!cols'] = columnWidths;
 
     // Create workbook
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Chat History');
+    const workbook = lib.utils.book_new();
+    lib.utils.book_append_sheet(workbook, worksheet, 'Chat History');
 
     // Generate filename
     const sanitizedChatId = (chatId || 'chat').replace(/[^a-zA-Z0-9-_]/g, '-').substring(0, 50);
     const filename = `chat-history-${sanitizedChatId}.xlsx`;
 
+    console.log('Generating Excel file:', filename);
+
     // Write file
-    XLSX.writeFile(workbook, filename, {
-        bookType: 'xlsx',
-        type: 'binary',
-        compression: true
-    });
+    try {
+        lib.writeFile(workbook, filename, {
+            bookType: 'xlsx',
+            type: 'binary',
+            compression: true
+        });
+    } catch (writeErr) {
+        console.error('XLSX.writeFile failed:', writeErr);
+        // Fallback to simpler call if compression/options fail
+        lib.writeFile(workbook, filename);
+    }
 }
 
 function formatTimestamp(timestamp) {

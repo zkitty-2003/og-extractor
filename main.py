@@ -14,6 +14,10 @@ import httpx
 import uuid
 import json
 import asyncio
+import base64
+import io
+import time
+from pypdf import PdfReader
 
 # OpenSearch
 from opensearchpy import AsyncOpenSearch
@@ -24,20 +28,13 @@ load_dotenv()
 
 app = FastAPI()
 
-# Mount frontend static files
-# Debug: Print current directory structure
+# Mount frontend static files (only if dist/ exists — skipped in dev mode)
 print(f"Current working directory: {os.getcwd()}")
 if os.path.exists("dist"):
     print(f"Contents of dist: {os.listdir('dist')}")
+    app.mount("/ui", StaticFiles(directory="dist", html=True), name="ui")
 else:
-    print("WARNING: 'dist' directory not found!")
-
-# Mount unconditionally to verify behavior (will error if missing, appearing in logs)
-app.mount("/ui", StaticFiles(directory="dist", html=True), name="ui")
-
-@app.get("/")
-def root():
-    return RedirectResponse(url="/ui")
+    print("INFO: 'dist' directory not found — skipping static file mount (dev mode OK)")
 
 security = HTTPBearer(auto_error=False)
 
@@ -509,7 +506,33 @@ async def extract_og(data: ExtractRequest):
 
 
 # ==============================
-# 2) Google Auth API
+# 2) Simple Email Auth (Dashboard Login)
+# ==============================
+
+# Demo user list: email -> role mapping
+# Add more users here or replace with DB lookup
+DASHBOARD_USERS = {
+    "admin@example.com": "admin",
+    "user@example.com": "user",
+}
+
+class EmailLoginRequest(BaseModel):
+    email: str
+
+@app.post("/api/auth/login")
+async def email_login(request: EmailLoginRequest):
+    email = request.email.strip().lower()
+    role = DASHBOARD_USERS.get(email)
+    if not role:
+        raise HTTPException(status_code=401, detail="Email not authorized")
+    return {
+        "user_id": email,
+        "role": role,
+    }
+
+
+# ==============================
+# 3) Google Auth API
 # ==============================
 
 from google.oauth2 import id_token
@@ -575,19 +598,20 @@ def resolve_openrouter_key(
 ) -> str:
     """
     เลือก API key จาก:
-    1) Authorization header จาก client (ถ้ามี)
-    2) ENV: OPENROUTER_API_KEY
+    1) ENV: OPENROUTER_API_KEY (Force reload `.env` so it updates seamlessly)
+    2) Authorization header จาก client (ถ้ามี)
     ถ้าไม่เจอ -> 401
     """
-    api_key: Optional[str] = None
+    # โหลดค่าไฟล์ .env แบบสดใหม่เสมอ เผื่อมีการแก้ไฟล์กลางคัน
+    from dotenv import load_dotenv
+    load_dotenv(override=True)
 
-    # 1) จาก client (Bearer)
-    if creds and creds.credentials:
+    # 1) จาก Environment Variable บน server
+    api_key = os.environ.get("OPENROUTER_API_KEY")
+
+    # 2) จาก client (Bearer)
+    if not api_key and creds and creds.credentials:
         api_key = creds.credentials.strip()
-
-    # 2) จาก Environment Variable บน server
-    if not api_key:
-        api_key = os.environ.get("OPENROUTER_API_KEY")
 
     if not api_key:
         raise HTTPException(status_code=401, detail="API Key missing")
@@ -733,6 +757,7 @@ class ChatRequest(BaseModel):
     chat_id: Optional[str] = None
     user_email: Optional[str] = None
     user_avatar: Optional[str] = None
+    file: Optional[Dict[str, str]] = None  # {name, type, data}
 
 
 def is_image_generation_prompt(text: str) -> bool:
@@ -743,6 +768,116 @@ def is_image_generation_prompt(text: str) -> bool:
     keywords = ["/imagine", "/gen", "/image", "/img", "สร้างรูป", "วาดรูป", "generate image", "create image"]
     return any(text_lower.startswith(kw) for kw in keywords)
 
+async def _retrieve_context(query: str, user_email: Optional[str]) -> str:
+    """
+    RAG Step: Simulate searching a knowledge base or using OpenSearch to find historical context.
+    """
+    if not opensearch_client or not user_email:
+        return ""
+    try:
+        response = await opensearch_client.search(
+            index="chat_summaries",
+            body={
+                "query": {
+                    "bool": {
+                        "must": [
+                            {"match": {"user_email": user_email}},
+                            {"match": {"summary": query}}
+                        ]
+                    }
+                },
+                "size": 3
+            }
+        )
+        hits = response["hits"]["hits"]
+        if hits:
+            context = "\n".join([f"- {h['_source'].get('summary', '')}" for h in hits])
+            return f"\n[ข้อมูลอ้างอิงจากฐานข้อมูล (RAG)]:\n{context}"
+    except Exception as e:
+        print(f"RAG Retrieval Error: {e}")
+    return ""
+
+async def _evaluate_and_refine(draft: str, original_prompt: str, api_key: str, model: str, context: str = "", chat_history: List[Dict[str, Any]] = None) -> str:
+    """
+    Self-Correction Step: Send the draft to a Critic Agent to evaluate and improve.
+    """
+    print("🤖 Agent 2 (Critic) is reviewing the draft...")
+    
+    # Format the chat history for context
+    history_text = ""
+    if chat_history:
+        # Keep only the last 3-4 exchanges to not overwhelm the critic
+        recent_history = chat_history[-6:]
+        history_text = "\n[ประวัติการสนทนาก่อนหน้า]:\n" + "\n".join([f"{msg['role']}: {msg['content']}" for msg in recent_history if msg['role'] != 'system'])
+
+    system_prompt = (
+        "คุณคือ AI Assistant (Editor) หน้าที่ของคุณคือรับ 'ร่างคำตอบ' มาปรับปรุงให้ถูกต้องที่สุด "
+        "โดยอิงจาก 'ข้อมูลอ้างอิง/ไฟล์ที่แนบ' และ 'ประวัติการสนทนา' "
+        "หากร่างคำตอบมีเนื้อหาที่มั่วหรือไม่ตรงกับไฟล์ ให้แก้ไขข้อมูลให้ถูกต้องตามไฟล์ทันที "
+        "**กฎเหล็ก:** ให้ตอบเฉพาะ 'ข้อความที่แก้ไขเสร็จสมบูรณ์แล้ว' เท่านั้น ห้ามเขียนอธิบาย ห้ามเกริ่น"
+    )
+    
+    user_content = f"{history_text}\n\n[ข้อมูลอ้างอิง/ไฟล์ที่แนบ]:\n{context}\n\n[คำถามปัจจุบัน]: {original_prompt}\n\n[ร่างคำตอบที่ต้องตรวจสอบ]:\n{draft}"
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_content}
+    ]
+
+    
+    payload = {
+        "model": model, 
+        "messages": messages,
+        "stream": False,
+    }
+    
+    try:
+        async with httpx.AsyncClient(timeout=60) as client:
+            response = await client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+            )
+            if response.status_code == 200:
+                data = response.json()
+                if "choices" in data and data["choices"]:
+                    refined_text = data["choices"][0]["message"]["content"]
+                    return refined_text
+            else:
+                print(f"Critic Error: {response.text}")
+    except Exception as e:
+        print(f"Self-Correction Exception: {e}")
+    
+    # Fallback to the original draft if the Critic fails
+    return draft
+
+
+def parse_file_content(file_data: Dict[str, str]) -> str:
+    """Extra file info such as PDF or TXT"""
+    try:
+        decoded_bytes = base64.b64decode(file_data["data"])
+        file_type = file_data.get("type", "")
+        
+        if "pdf" in file_type:
+            pdf_reader = PdfReader(io.BytesIO(decoded_bytes))
+            text = f"[เนื้อหาไฟล์ PDF: {file_data.get('name')}]\n"
+            for page in pdf_reader.pages:
+                text += page.extract_text() + "\n"
+            return text
+        elif "text" in file_type:
+            text = f"[เนื้อหาไฟล์ Text: {file_data.get('name')}]\n"
+            text += decoded_bytes.decode("utf-8")
+            return text
+    except Exception as e:
+        print(f"File Parse Error: {e}")
+        with open("debug_pdf_error.log", "a", encoding="utf-8") as f:
+             f.write(f"[{datetime.now()}] Error: {str(e)}\n")
+        return f"[เกิดข้อผิดพลาดในการอ่านไฟล์ {file_data.get('name')}: {e}]"
+    
+    return ""
 
 @app.post("/chat")
 async def chat_with_ai(
@@ -750,18 +885,27 @@ async def chat_with_ai(
     background_tasks: BackgroundTasks,
     creds: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
+    start_time = time.time()
+    
+    # Check if request has an image file
+    is_image = False
+    image_url = None
+    if request.file and request.file.get("type", "").startswith("image/"):
+        is_image = True
+        image_url = f"data:{request.file['type']};base64,{request.file['data']}"
+    api_key = resolve_openrouter_key(creds)
 
-    """
-    Main Chat Endpoint (Standard) with Long-term Memory Injection
-    """
+    session_id = request.chat_id or str(uuid.uuid4())
+
+    # Ensure model comes from request or default
+    use_model = request.model or "openrouter/auto"
     print("\n" + "="*60)
     print(f"🎯 /CHAT ENDPOINT HIT! Time: {datetime.now()}")
     print(f"   Message: {request.message[:50]}...")
     print(f"   User: {request.user_email}")
+    print(f"   Model: {use_model}")
     print("="*60 + "\n")
     
-    api_key = resolve_openrouter_key(creds)
-
     # 1. Translate if needed (Logic remains same)
     if is_image_generation_prompt(request.message):
         print(f"Detected image prompt: {request.message}")
@@ -788,17 +932,24 @@ async def chat_with_ai(
 
     # 2. Prepare Memory & System Prompt
     system_content = (
-        "You are ABDUL, a helpful AI assistant.\n"
-        "CORE DIRECTIVES:\n"
-        "1. LANGUAGE: Answer in THAI only (unless user speaks English).\n"
-        "2. SCRIPT: Use THAI SCRIPT ONLY. Do not use Roman/English letters for Thai words.\n"
-        "3. NO PRONUNCIATION: Do not explain how to pronounce Thai words.\n"
-        "4. NO REPETITION: Do not repeat meanings in multiple languages.\n\n"
-        "CORRECT EXAMPLE:\n"
-        "✅ 'สวัสดีครับ มีอะไรให้ช่วยไหมครับ'\n"
-        "✅ '1 วัน มี 24 ชั่วโมงครับ'"
+        "คุณคือ AI Assistant สัญชาติไทยที่พูดจาสุภาพ เป็นมิตร และให้ข้อมูลที่แม่นยำ "
+        "ผู้ใช้งานอาจจะสอบถามข้อมูลทั่วไป หรืออัปโหลดไฟล์/รูปภาพมาให้คุณวิเคราะห์ "
+        "หากมีข้อมูลอ้างอิงแนบมา (RAG หรือ File) ให้ตอบคำถามโดยอิงจากเนื้อหาเหล่านั้นเป็นหลัก"
     )
 
+    # Parse document file if not an image
+    if request.file and not is_image:
+        parsed_text = parse_file_content(request.file)
+        # Log extracted text to a file for the assistant to verify
+        with open("debug_extracted_text.txt", "w", encoding="utf-8") as f:
+            f.write(parsed_text if parsed_text else "EMPTY_TEXT_EXTRACTED")
+            
+        if parsed_text:
+            print(f"✅ Extracted Text Snippet: {parsed_text[:100]}...")
+            print(f"Parsed file content: {len(parsed_text)} chars")
+            system_content += f"\n\n[ไฟล์ที่ผู้ใช้อัปโหลดมา]:\n{parsed_text}\n[สิ้นสุดเนื้อหาไฟล์]"
+        else:
+            print("❌ File was parsed but NO TEXT was extracted (empty or scanned PDF).")
 
     # Inject Memory if User is Known
     if request.user_email:
@@ -807,37 +958,48 @@ async def chat_with_ai(
             print(f"Injecting memory for {request.user_email}")
             system_content += f"\n\n[Long-term memory from previous chats]:\n{memory_context}"
 
+    # 2.5 Perform RAG Context Retrieval (New Step)
+    rag_context = await _retrieve_context(request.message, request.user_email)
+    if rag_context:
+        print(f"Injecting RAG context for {request.user_email}")
+        system_content += f"\n{rag_context}"
+
     # 3. Construct Messages
     messages = request.history or []
     
     # Check for models that don't support 'system' role (e.g., gemma-3)
-    # Error: "Developer instruction is not enabled for models/gemma-3-12b-it"
-    is_no_system_role_model = "gemma-3" in request.model
-
+    # Strategy: If gemma, prepend system content to the current user message.
+    # Otherwise, use the standard system role.
+    is_no_system_role_model = "gemma-3" in request.model or "gemma-3" in use_model
+    
     if is_no_system_role_model:
-        # Strategy: Prepend system prompt to the FIRST message in the conversation
-        if messages:
-            # If history exists, prepend to the first message (usually user)
-            # Ensure we don't duplicate if it somehow already has it (though history from FE usually doesn't)
-            messages[0]["content"] = f"{system_content}\n\n{messages[0]['content']}"
-            # Force role to user if it was somehow system
-            if messages[0]["role"] == "system":
-                messages[0]["role"] = "user"
+        # Prepend context to the user message directly
+        final_message_content = f"{system_content}\n\n---บันทึกไฟล์/ข้อมูลเสริมข้างต้นคือบริบท---\n\nคำถาม: {request.message}"
+        if is_image:
+            messages.append({
+                "role": "user", 
+                "content": [
+                    {"type": "text", "text": final_message_content},
+                    {"type": "image_url", "image_url": {"url": image_url}}
+                ]
+            })
         else:
-            # No history, prepend to the new user message
-            request.message = f"{system_content}\n\n{request.message}"
+            messages.append({"role": "user", "content": final_message_content})
     else:
-        # Standard behavior: Add System Message at index 0
-        if not messages or messages[0].get("role") != "system":
-            messages.insert(0, {"role": "system", "content": system_content})
+        # Standard behavior
+        messages.insert(0, {"role": "system", "content": system_content})
+        if is_image:
+            messages.append({
+                "role": "user", 
+                "content": [
+                    {"type": "text", "text": request.message},
+                    {"type": "image_url", "image_url": {"url": image_url}}
+                ]
+            })
         else:
-            messages[0]["content"] = system_content
-
-    messages.append({"role": "user", "content": request.message})
+            messages.append({"role": "user", "content": request.message})
 
     # 4. Call AI
-    import time
-    start_time = time.time()
     
     # Generate unique request_id for token tracking
     request_id = str(uuid.uuid4())
@@ -900,9 +1062,29 @@ async def chat_with_ai(
              return {"success": False, "error": error_txt}
 
         data = response.json()
-        ai_message = data["choices"][0]["message"]["content"]
+        draft_message = data["choices"][0]["message"]["content"]
         
-        # ✅ STEP 2: Log AI Message (Success)
+        # ✅ STEP 4: Self-Correction (New Step)
+        print("\n" + "-"*30)
+        print("[DRAFT CREATED]")
+        print(draft_message[:100] + "...")
+        print("-" * 30)
+        
+        ai_message = await _evaluate_and_refine(
+            draft=draft_message, 
+            original_prompt=request.message, 
+            api_key=api_key, 
+            model=data.get("model", use_model),
+            context=system_content,
+            chat_history=messages
+        )
+        
+        print("\n" + "-"*30)
+        print("[REFINED RESPONSE READY]")
+        print(ai_message[:100] + "...")
+        print("-" * 30 + "\n")
+        
+        # ✅ STEP 5: Log AI Message (Success)
         background_tasks.add_task(
             log_to_opensearch,
             session_id=session_id,
@@ -992,14 +1174,22 @@ async def _analyze_chat_logic(
         "qwen/qwen-2-7b-instruct:free",
     ]
 
+    # If the first message is a system message with file content, include a snippet of it
+    system_context = ""
+    if messages and messages[0].get("role") == "system":
+        content = messages[0].get("content", "")
+        if "[ไฟล์ที่ผู้ใช้อัปโหลดมา]" in content:
+            # Extract a small part of the file info to help the summarizer know what the file is
+            system_context = f"Context (Files Attached): {content[:500]}...\n\n"
+
     # Use more context if possible, but keep it within limits
     MAX_MSG = 50
     trimmed = [m for m in messages[-MAX_MSG:] if m.get("role") in ("user", "assistant")]
 
-    if not trimmed:
+    if not trimmed and not system_context:
         return {"success": False, "error": "No conversation to analyze"}
 
-    conversation_text = ""
+    conversation_text = system_context
     for m in trimmed:
         role_th = "User" if m.get("role") == "user" else "AI"
         conversation_text += f"{role_th}: {m.get('content', '')}\n"
@@ -1008,17 +1198,11 @@ async def _analyze_chat_logic(
         "You are a strict conversation summarizer.\n\n"
         "LANGUAGE RULE: Detect the dominant language of the conversation.\n"
         "- If Thai, summarize in THAI.\n"
-        "- If English, summarize in ENGLISH.\n"
-        "- Do NOT switch languages mid-summary.\n\n"
-        "STRICT GUIDELINES:\n"
-        "1. Summarize ONLY based on ACTUAL conversation content.\n"
-        "2. NO meta-explanations (e.g. 'AI can help...', 'The user asked...').\n"
-        "3. NO advertising, NO hallucinations, NO broad generalizations.\n"
-        "4. Be concise and factual.\n\n"
+        "- If English, summarize in ENGLISH.\n\n"
         "REQUIRED OUTPUT FORMAT:\n"
-        "Title: (1 line, short & clear, in detected language)\n"
-        "Summary: (2-4 sentences, purely factual, in detected language)\n"
-        "Topics: (3-6 keywords, comma-separated, in detected language)\n"
+        "Title: [Short title describing the main topic]\n"
+        "Summary: [2-4 sentences summarizing the key points]\n"
+        "Topics: [Keywords separated by commas]\n"
     )
     
     final_user_content = f"Conversation to summarize:\n{conversation_text}"
@@ -1057,21 +1241,24 @@ async def _analyze_chat_logic(
                     if "choices" in data and data["choices"]:
                         content = data["choices"][0]["message"]["content"]
                         
-                        # Parse Text Output with Regex
-                        title_match = re.search(r"Title:\s*(.+)", content, re.IGNORECASE)
-                        summary_match = re.search(r"Summary:\s*(.+)", content, re.IGNORECASE | re.DOTALL)
-                        topics_match = re.search(r"Topics:\s*(.+)", content, re.IGNORECASE)
+                        # Parse Text Output with more flexible Regex
+                        title_match = re.search(r"(?:Title|หัวข้อ|ชื่อเรื่อง):\s*(.+)", content, re.IGNORECASE)
+                        summary_match = re.search(r"(?:Summary|สรุป|เนื้อหา):\s*(.+)", content, re.IGNORECASE | re.DOTALL)
+                        topics_match = re.search(r"(?:Topics|หัวข้อสำคัญ|คำค้น):\s*(.+)", content, re.IGNORECASE)
 
-                        title = title_match.group(1).strip() if title_match else "สรุปแชท"
+                        # Debug Output
+                        print(f"--- Raw Summary Output ---\n{content}\n-------------------------")
+
+                        title = title_match.group(1).strip() if title_match else "สรุปบทสนทนา"
                         
-                        summary = "ไม่มีสรุป"
+                        summary = ""
                         if summary_match:
                             # Capture everything until "Topics:" or end of string
                             raw_summary = summary_match.group(1).strip()
-                            # If topics come after summary, cut it off
-                            topics_start = re.search(r"Topics:", raw_summary, re.IGNORECASE)
-                            if topics_start:
-                                summary = raw_summary[:topics_start.start()].strip()
+                            # If topics/anything comes after summary, cut it off at next label
+                            label_start = re.search(r"(?:Topics|หัวข้อสำคัญ|คำค้น):", raw_summary, re.IGNORECASE)
+                            if label_start:
+                                summary = raw_summary[:label_start.start()].strip()
                             else:
                                 summary = raw_summary
 
@@ -1084,9 +1271,19 @@ async def _analyze_chat_logic(
                             else:
                                 topics = [t.strip() for t in raw_topics.split()]
                         
-                        # Fallback: if regex failed completely, treat whole content as summary
-                        if not title_match and not summary_match:
-                             summary = content.strip()
+                        # Fallback: if summary is still empty, treat whole content as summary
+                        if not summary or summary == "ไม่มีสรุป":
+                            if title_match and not summary_match:
+                                # If we found a title but no summary label, the rest might be summary
+                                after_title = content[title_match.end():].strip()
+                                if after_title:
+                                    summary = after_title
+                            else:
+                                summary = content.strip()
+                        
+                        # Clean up common AI prefixes in title
+                        title = re.sub(r"^[*\s#]+", "", title).strip()
+                        title = re.sub(r"[*\s#]+$", "", title).strip()
 
                         # Construct Response
                         parsed = {
