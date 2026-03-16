@@ -659,12 +659,14 @@ def resolve_openrouter_key(
     from dotenv import load_dotenv
     load_dotenv(override=True)
 
-    # 1) จาก Environment Variable บน server
-    api_key = os.environ.get("OPENROUTER_API_KEY")
-
-    # 2) จาก client (Bearer)
-    if not api_key and creds and creds.credentials:
+    # 1) จาก client (Bearer) - ให้สิทธิ์ client ก่อนเพื่อ override ได้
+    api_key = None
+    if creds and creds.credentials:
         api_key = creds.credentials.strip()
+
+    # 2) ถ้า client ไม่ส่งมา ให้เอาจาก Environment Variable บน server
+    if not api_key:
+        api_key = os.environ.get("OPENROUTER_API_KEY")
 
     if not api_key:
         raise HTTPException(status_code=401, detail="API Key missing")

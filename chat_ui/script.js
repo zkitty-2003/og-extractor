@@ -1,5 +1,5 @@
 // API Configuration
-const API_BASE_URL = 'http://localhost:10001'; // Backend API URL
+const API_BASE_URL = ''; // Relative path for production/Render compatibility
 
 // Global state
 let currentUser = null;
