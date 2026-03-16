@@ -39,10 +39,19 @@ app = FastAPI()
 # Mount frontend static files
 app.mount("/static", StaticFiles(directory="chat_ui"), name="static")
 
+# Mount Dashboard UI (Production only, if directory exists)
+if os.path.exists("dashboard_dist"):
+    app.mount("/dashboard-ui", StaticFiles(directory="dashboard_dist", html=True), name="dashboard")
+    print("✅ Dashboard UI mounted at /dashboard-ui")
+
 @app.get("/ui")
 async def serve_ui():
     from fastapi.responses import FileResponse
     return FileResponse("chat_ui/index.html")
+
+@app.get("/dashboard")
+async def redirect_dashboard():
+    return RedirectResponse(url="/dashboard-ui/")
 
 if os.path.exists("dist"):
     print(f"Contents of dist: {os.listdir('dist')}")
