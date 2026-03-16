@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Activity, Clock, AlertTriangle, RefreshCw, BarChart3, LogOut, Download, Users, MessageSquare, ClipboardList } from "lucide-react"
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts'
 import axios from "axios"
+import { DASHBOARD_API_BASE } from "@/utils/apiConfig"
 import * as htmlToImage from 'html-to-image'
 import { jsPDF } from "jspdf"
 
@@ -98,7 +99,7 @@ export default function AdminDashboard() {
         setLoading(true)
         setError(null)
         try {
-            const API_BASE = "http://127.0.0.1:10001/api/dashboard"
+            const API_BASE = DASHBOARD_API_BASE
 
             const [sumRes, tsRes, tokenRes, insightRes] = await Promise.all([
                 axios.get(`${API_BASE}/summary?time_range=${timeRange}`, { timeout: 5000 }),

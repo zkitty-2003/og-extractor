@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input" // Assuming you might have/need th
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { AlertTriangle, Lock } from "lucide-react"
 import axios from "axios"
+import { AUTH_API_BASE } from "@/utils/apiConfig"
 
 export default function Login() {
     const [email, setEmail] = useState("")
@@ -20,7 +21,7 @@ export default function Login() {
         setError("")
 
         try {
-            const res = await axios.post('http://127.0.0.1:10001/api/auth/login', { email })
+            const res = await axios.post(`${AUTH_API_BASE}/login`, { email })
             const { user_id, role } = res.data
 
             login(user_id, role)

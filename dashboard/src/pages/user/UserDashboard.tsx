@@ -5,6 +5,7 @@ import { TimeRangeControl } from "@/components/TimeRangeControl"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Activity, AlertTriangle, RefreshCw, MessageSquare, Zap, LayoutDashboard, Calendar, BarChart3 } from "lucide-react"
 import axios from "axios"
+import { USER_API_BASE } from "@/utils/apiConfig"
 import { formatInt, formatMs } from "@/lib/utils"
 
 interface UserSummary {
@@ -45,8 +46,8 @@ export default function UserDashboard() {
             }
 
             const [sumRes, actRes] = await Promise.all([
-                axios.get(`http://127.0.0.1:10001/api/user/summary?time_range=${timeRange}`, config),
-                axios.get(`http://127.0.0.1:10001/api/user/activity?limit=10`, config)
+                axios.get(`${USER_API_BASE}/summary?time_range=${timeRange}`, config),
+                axios.get(`${USER_API_BASE}/activity?limit=10`, config)
             ])
 
             setSummary(sumRes.data)
@@ -122,7 +123,7 @@ export default function UserDashboard() {
                 <div className="space-y-1">
                     <h3 className="text-lg font-semibold text-slate-900">Unable to load dashboard</h3>
                     <p className="text-sm text-slate-500">We couldn't fetch your analytics data at this time.</p>
-                    <p className="text-xs text-red-500 font-mono mt-2">Check console for API errors (Port 10001)</p>
+                    <p className="text-xs text-red-500 font-mono mt-2">Check console for API errors</p>
                 </div>
                 <button
                     onClick={fetchData}

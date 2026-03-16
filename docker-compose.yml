@@ -8,7 +8,7 @@ services:
     # We expose 10000 internally to the network, and map it to host if you want direct access
     # But primarily the frontend will talk to it via docker network
     ports:
-      - "10000:10000"
+      - "10001:8000"
     environment:
       - OPENSEARCH_URL=http://opensearch-node:9200
       - OPENSEARCH_USERNAME=
@@ -27,6 +27,17 @@ services:
     container_name: og-extractor-frontend
     ports:
       - "3000:3000"
+    depends_on:
+      - api
+    networks:
+      - og-network
+
+  # Dashboard Service (Admin & User Dashboard)
+  dashboard:
+    build: ./dashboard
+    container_name: og-extractor-dashboard
+    ports:
+      - "4000:4000"
     depends_on:
       - api
     networks:
