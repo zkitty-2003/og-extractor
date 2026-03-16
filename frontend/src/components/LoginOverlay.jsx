@@ -14,6 +14,11 @@ const LoginOverlay = ({ isOpen, onClose, currentUser, onLogout, onLoginSuccess }
 
     // Collapsible Settings State
     const [showSettings, setShowSettings] = useState(false);
+    const [imgError, setImgError] = useState(false);
+
+    useEffect(() => {
+        setImgError(false); // Reset error when user changes or overlay re-opens
+    }, [isOpen, currentUser]);
 
     useEffect(() => {
         if (isOpen) {
@@ -119,7 +124,18 @@ const LoginOverlay = ({ isOpen, onClose, currentUser, onLogout, onLoginSuccess }
                 {/* === User Profile Section === */}
                 {currentUser ? (
                     <div className="profile-section" style={{ marginBottom: '40px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                        <img src={currentUser.picture} className="profile-avatar-large" alt="Profile" />
+                        {currentUser.picture && !imgError ? (
+                            <img
+                                src={currentUser.picture}
+                                className="profile-avatar-large"
+                                alt="Profile"
+                                onError={() => setImgError(true)}
+                            />
+                        ) : (
+                            <div className="profile-avatar-large">
+                                {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : (currentUser.email ? currentUser.email.charAt(0).toUpperCase() : '?')}
+                            </div>
+                        )}
                         <div className="profile-name-large">{currentUser.name}</div>
                         <div className="profile-email-large">{currentUser.email}</div>
 

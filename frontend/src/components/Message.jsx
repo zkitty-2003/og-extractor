@@ -95,6 +95,56 @@ const Message = ({ message, currentUser }) => {
                             onClick={() => window.open(img, '_blank')}
                         />
                     ))}
+
+                    {/* Prompt Evaluation UI */}
+                    {message.evalData && (
+                        <div style={{ marginTop: '15px', padding: '10px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                            <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '8px' }}>
+                                ⏱️ Time: {Math.round(message.evalData.duration)}ms | 🪙 Tokens: {message.evalData.tokens}
+                            </div>
+
+                            {!message.evalData.scored ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    <div style={{ fontSize: '13px', fontWeight: 'bold' }}>Rate this response:</div>
+                                    <div style={{ display: 'flex', gap: '5px' }}>
+                                        {[1, 2, 3, 4, 5].map(score => (
+                                            <button
+                                                key={score}
+                                                onClick={async () => {
+                                                    try {
+                                                        const { scorePrompt } = await import('../utils/api');
+                                                        const token = localStorage.getItem('openrouter_api_key') || '';
+                                                        await scorePrompt(message.evalData.id, score, '', token);
+                                                        // Update local state to show it was scored
+                                                        message.evalData.scored = true;
+                                                        message.evalData.scoreGiven = score;
+                                                        // Force re-render hack:
+                                                        setImgError(prev => !prev);
+                                                        setImgError(prev => !prev);
+                                                    } catch (e) {
+                                                        console.error("Failed to submit score", e);
+                                                        alert("Failed to save score");
+                                                    }
+                                                }}
+                                                style={{
+                                                    background: 'none', border: '1px solid #cbd5e1', borderRadius: '4px',
+                                                    padding: '4px 8px', cursor: 'pointer', fontSize: '16px',
+                                                    transition: 'all 0.2s'
+                                                }}
+                                                className="score-btn"
+                                            >
+                                                {score === 1 ? '😡' : score === 2 ? '😟' : score === 3 ? '😐' : score === 4 ? '🙂' : '🤩'}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div style={{ fontSize: '13px', color: '#16a34a', fontWeight: 'bold' }}>
+                                    ✅ Scored: {message.evalData.scoreGiven}/5
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
         </div >

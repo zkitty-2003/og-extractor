@@ -48,7 +48,6 @@ function App() {
     return String(raw).trim().toLowerCase().replace(/\s+/g, '_');
   };
 
-
   const getHistoryStorageKey = (user) =>
     `chat_history_${getUserKeySuffix(user)}`;
 
@@ -76,7 +75,6 @@ function App() {
     applyTheme(savedTheme || DEFAULT_THEME);
   };
 
-
   const saveThemeToStorage = (newTheme, user) => {
     const key = getThemeStorageKey(user);
     localStorage.setItem(key, newTheme);
@@ -95,6 +93,7 @@ function App() {
   };
 
   const updateHistory = (newMessages) => {
+
     let newHistory = [...history];
     let chatId = currentChatId;
 
@@ -228,6 +227,7 @@ function App() {
 
     try {
       const token = getOpenRouterKey();
+
 
       if (isImageMode) {
         // ===== Image Generation Flow =====

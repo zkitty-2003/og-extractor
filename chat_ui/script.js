@@ -1,5 +1,5 @@
 // API Configuration
-const API_BASE_URL = 'http://localhost:10000'; // Backend API URL
+const API_BASE_URL = 'http://localhost:10001'; // Backend API URL
 
 // Global state
 let currentUser = null;
@@ -814,6 +814,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.toggleImageMode = toggleImageMode;
 });
 
+
 // --- OpenSearch Headers and Logging ---
 const logChatToOpenSearch = async (chatData) => {
     // REPLACE WITH YOUR ACTUAL OPENSEARCH URL
@@ -903,12 +904,12 @@ async function sendMessage() {
     setBusyState(true);
 
     // Add User Message
-    appendMessage(text, 'user');
+    appendMessage(text, 'user', null, [], true);
     messageInput.value = '';
 
     // Create AI Message Placeholder
     const aiMsgId = 'ai-msg-' + Date.now();
-    appendMessage('', 'ai', aiMsgId); // Empty content initially
+    appendMessage('', 'ai', aiMsgId, [], true); // Empty content initially
     const aiMsgElement = document.getElementById(aiMsgId);
     const contentDiv = aiMsgElement.querySelector('.content');
 
@@ -916,7 +917,6 @@ async function sendMessage() {
     contentDiv.innerHTML = '<i class="fas fa-ellipsis-h fa-fade"></i>';
 
     try {
-        if (isImageMode) {
             // --- Image Generation Flow ---
             contentDiv.textContent = "Translating prompt...";
 
@@ -1005,7 +1005,7 @@ async function sendMessage() {
                 const aiMessage = data.data.message;
                 const images = data.data.images || [];
                 aiMsgElement.remove();
-                appendMessage(aiMessage, 'ai', null, images);
+                appendMessage(aiMessage, 'ai', null, images, true);
 
                 // Log to OpenSearch
                 const endTime = performance.now();
@@ -1024,9 +1024,8 @@ async function sendMessage() {
                 throw new Error('Unknown error from server');
             }
         }
-
     } catch (error) {
-        contentDiv.textContent = 'Error: ' + error.message;
+        if (contentDiv) contentDiv.textContent = 'Error: ' + error.message;
         chatHistory.push({ role: "assistant", content: 'Error: ' + error.message });
         saveChatHistory();
     } finally {
@@ -1034,12 +1033,12 @@ async function sendMessage() {
     }
 }
 
-function appendMessage(text, sender, id = null, images = []) {
+function appendMessage(text, sender, id = null, images = [], saveToHistory = true) {
     // Render UI
     renderMessageToUI(text, sender, id, images);
 
-    // Save History only if it's a user message or completed AI message (not placeholder)
-    if (!id) {
+    // Save History only if it's a user message or completed AI message (not placeholder) and saveToHistory is true
+    if (!id && saveToHistory && !text.includes('class="eval-scoring"')) {
         // Update State
         chatHistory.push({
             role: sender === 'user' ? "user" : "assistant",
@@ -1050,6 +1049,7 @@ function appendMessage(text, sender, id = null, images = []) {
         saveChatHistory();
     }
 }
+
 
 function scrollToBottom() {
     const chatContainer = document.getElementById('chat-container');

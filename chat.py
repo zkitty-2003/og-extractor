@@ -96,7 +96,103 @@ async def chat_with_ai(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
+
+# ==============================
+# Prompt Evaluation API (Mock for chat.py)
+# ==============================
+
+class PromptEvalRequest(BaseModel):
+    prompt_version: str # e.g. "v1_polite", "v2_expert"
+    system_prompt: str # The actual prompt text to test
+    user_input: str
+    model: Optional[str] = "google/gemma-3-27b-it:free"
+
+class PromptScoreRequest(BaseModel):
+    eval_id: str
+    score: int # 1-5
+    comment: Optional[str] = ""
+
+@app.post("/eval/prompt")
+async def evaluate_prompt(
+    request: PromptEvalRequest,
+    creds: HTTPAuthorizationCredentials = Depends(security)
+):
+    """
+    Test a specific system prompt version and return results.
+    Does not log to OpenSearch since this is the lightweight chat.py version.
+    """
+    import time
+    import uuid
+    api_key = creds.credentials
+    eval_id = str(uuid.uuid4())
+    start_time = time.time()
+    
+    messages = [
+        {"role": "system", "content": request.system_prompt},
+        {"role": "user", "content": request.user_input}
+    ]
+    
+    payload = {
+        "model": request.model,
+        "messages": messages,
+        "stream": False,
+    }
+    
+    try:
+        async with httpx.AsyncClient(timeout=60) as client:
+            response = await client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+            )
+            
+        end_time = time.time()
+        duration_ms = (end_time - start_time) * 1000.0
+            
+        if response.status_code != 200:
+            return {"success": False, "error": response.text}
+            
+        data = response.json()
+        ai_response = data["choices"][0]["message"]["content"]
+        usage = data.get("usage", {})
+        total_tokens = usage.get("total_tokens", 0)
+            
+        return {
+            "success": True,
+            "eval_id": eval_id,
+            "response": ai_response,
+            "duration_ms": duration_ms,
+            "tokens": total_tokens
+        }
+        
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+@app.post("/eval/score")
+async def score_prompt_evaluation(
+    request: PromptScoreRequest,
+    creds: HTTPAuthorizationCredentials = Depends(security)
+):
+    """
+    Assign a score (1-5) and comment to a previous prompt test.
+    Mock endpoint for UI compatibility in chat.py
+    """
+    return {"success": True, "message": "Score received (Mocked, not saved to DB in local mode)"}
+
+@app.get("/eval/results")
+async def get_prompt_evaluation_results(
+    creds: HTTPAuthorizationCredentials = Depends(security)
+):
+    """
+    Mocks aggregate results for UI compatibility in chat.py.
+    """
+    return {"success": False, "error": "Evaluation results require the full backend (main.py) with OpenSearch."}
+
+
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.environ.get("PORT", 10000))
+    port = int(os.environ.get("PORT", 10001))
     uvicorn.run(app, host="0.0.0.0", port=port)

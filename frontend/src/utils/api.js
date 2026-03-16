@@ -76,4 +76,29 @@ export const fetchOpenRouterModels = async (apiKey) => {
     });
 };
 
+export const evaluatePrompt = async (systemPrompt, userInput, promptVersion, model, token) => {
+    return api.post(
+        '/eval/prompt',
+        {
+            system_prompt: systemPrompt,
+            user_input: userInput,
+            prompt_version: promptVersion,
+            model: model
+        },
+        getAuthConfig(token)
+    );
+};
+
+export const scorePrompt = async (evalId, score, comment, token) => {
+    return api.post(
+        '/eval/score',
+        {
+            eval_id: evalId,
+            score: score,
+            comment: comment
+        },
+        getAuthConfig(token)
+    );
+};
+
 export default api;

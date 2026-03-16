@@ -15,21 +15,29 @@ RUN npm run build
 # Stage 2: Backend Runtime
 FROM python:3.10-slim
 
+# Add a non-root user for security
+RUN useradd -m -u 1000 appuser
+
 WORKDIR /app
 
 # Install dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy backend code (including main.py and other modules)
+# Copy backend code
 COPY . .
 
-# Copy built frontend assets from Stage 1 -> /app/dist
+# Copy built frontend assets
 COPY --from=frontend-builder /frontend_build/dist ./dist
 
-# Expose port (Documentation only, Render ignores this)
+# Change ownership of /app to appuser
+RUN chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
+
+# Expose port
 EXPOSE 8000
 
-# Start command using $PORT environment variable
-# Module path: main.py -> main:app
+# Start command
 CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]

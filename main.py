@@ -8,6 +8,17 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, HttpUrl
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+print("DEBUG: Attempting to load .env from:", os.getcwd())
+if os.path.exists(".env"):
+    with open(".env", "r") as f:
+        print("DEBUG: Raw .env content snippet:", f.read(50) + "...")
+load_success = load_dotenv(override=True)
+print(f"DEBUG: .env loaded successfully = {load_success}")
+print(f"DEBUG: OPENSEARCH_URL from env = {os.environ.get('OPENSEARCH_URL', 'NOT_FOUND')[:30]}...")
+
 from typing import Optional, List, Dict, Any, Tuple
 from bs4 import BeautifulSoup
 import httpx
@@ -22,19 +33,21 @@ from pypdf import PdfReader
 # OpenSearch
 from opensearchpy import AsyncOpenSearch
 from opensearchpy.exceptions import NotFoundError
-from dotenv import load_dotenv
-
-load_dotenv()
 
 app = FastAPI()
 
-# Mount frontend static files (only if dist/ exists — skipped in dev mode)
-print(f"Current working directory: {os.getcwd()}")
+# Mount frontend static files
+app.mount("/static", StaticFiles(directory="chat_ui"), name="static")
+
+@app.get("/ui")
+async def serve_ui():
+    from fastapi.responses import FileResponse
+    return FileResponse("chat_ui/index.html")
+
 if os.path.exists("dist"):
     print(f"Contents of dist: {os.listdir('dist')}")
-    app.mount("/ui", StaticFiles(directory="dist", html=True), name="ui")
 else:
-    print("INFO: 'dist' directory not found — skipping static file mount (dev mode OK)")
+    print("INFO: 'dist' directory not found — skipping dist file mount (dev mode OK)")
 
 security = HTTPBearer(auto_error=False)
 
@@ -53,12 +66,16 @@ app.add_middleware(
 
 def build_opensearch_client():
     # Get from docker-compose: OPENSEARCH_URL=http://opensearch-node:9200
-    url = os.getenv("OPENSEARCH_URL", "http://localhost:9200")
+    url = os.environ.get("OPENSEARCH_URL") or os.getenv("OPENSEARCH_URL", "http://localhost:9200")
+    print(f"DEBUG: Initializing OpenSearch with URL: {url[:60]}...")
     u = urlparse(url)
 
     host = u.hostname or "localhost"
-    port = u.port or 9200
+    # ✅ Standard port logic: HTTPS defaults to 443, HTTP to 9200
+    port = u.port or (443 if u.scheme == "https" else 9200)
     use_ssl = (u.scheme == "https")
+
+    print(f"DEBUG: OpenSearch config parsed -> host={host}, port={port}, use_ssl={use_ssl}")
 
     username = os.getenv("OPENSEARCH_USERNAME") or None
     password = os.getenv("OPENSEARCH_PASSWORD") or None
@@ -81,86 +98,106 @@ def build_opensearch_client():
 @app.on_event("startup")
 async def startup_event():
     global opensearch_client
-    print("Initializing OpenSearch client via OPENSEARCH_URL...")
+    print("🚀 Starting Backend...")
     try:
         opensearch_client = build_opensearch_client()
-        ok = await opensearch_client.ping()
-        print("OpenSearch ping =", ok)
-        if ok:
+        # Verify connection
+        if await opensearch_client.ping():
+            print("✅ OpenSearch Connected Successfully!")
             await init_opensearch_index()
+        else:
+            print("❌ OpenSearch Ping Failed.")
     except Exception as e:
-        print("Failed to initialize OpenSearch client:", e)
+        print(f"❌ Failed to initialize OpenSearch client: {e}")
 
 
 async def init_opensearch_index():
-    """Initialize the chat_summaries and token_usage indices with proper mapping if they don't exist."""
+    """Initialize the chat_summaries, token_usage, and prompt_evaluations indices with proper mapping if they don't exist."""
     if not opensearch_client:
         return
 
-    # ==========================================
-    # Index 1: chat_summaries
-    # ==========================================
-    index_name_summaries = "chat_summaries"
-    mapping_summaries = {
-        "mappings": {
-            "properties": {
-                "id": {"type": "keyword"},
-                "user_email": {"type": "keyword"},
-                "title": {
-                    "type": "text",
-                    "fields": {"keyword": {"type": "keyword"}}
-                },
-                "summary": {"type": "text"},
-                "topics": {"type": "keyword"},
-                "message_count": {"type": "integer"},
-                "last_message_at": {"type": "date"}
+    try:
+        # 1. Init chat_summaries
+        settings_summaries = {
+            "settings": {
+                "number_of_shards": 1,
+                "number_of_replicas": 0
+            },
+            "mappings": {
+                "properties": {
+                    "user_email": {"type": "keyword"},
+                    "title": {"type": "text"},
+                    "summary": {"type": "text"},
+                    "topics": {"type": "keyword"},
+                    "last_message_at": {"type": "date"},
+                    "message_count": {"type": "integer"}
+                }
             }
         }
-    }
-
-    try:
-        exists = await opensearch_client.indices.exists(index=index_name_summaries)
-        if not exists:
-            await opensearch_client.indices.create(index=index_name_summaries, body=mapping_summaries)
-            print(f"Index '{index_name_summaries}' created with mapping.")
+        if not await opensearch_client.indices.exists(index="chat_summaries"):
+            print("Creating index: chat_summaries")
+            await opensearch_client.indices.create(index="chat_summaries", body=settings_summaries)
         else:
-            print(f"Index '{index_name_summaries}' already exists.")
-    except Exception as e:
-        print(f"Error initializing index '{index_name_summaries}': {e}")
+            print("Index chat_summaries already exists.")
 
-    # ==========================================
-    # Index 2: token_usage (NEW)
-    # ==========================================
-    index_name_tokens = "token_usage"
-    mapping_tokens = {
-        "mappings": {
-            "properties": {
-                "request_id": {"type": "keyword"},
-                "timestamp": {"type": "date"},
-                "session_id": {"type": "keyword"},
-                "user_id": {"type": "keyword"},
-                "model": {"type": "keyword"},
-                "provider": {"type": "keyword"},
-                "prompt_tokens": {"type": "integer"},
-                "completion_tokens": {"type": "integer"},
-                "total_tokens": {"type": "integer"},
-                "cost": {"type": "float"},
-                "response_time_ms": {"type": "float"},
-                "status": {"type": "keyword"},
-                "endpoint": {"type": "keyword"}
+        # 2. Init token_usage
+        settings_tokens = {
+            "settings": {
+                "number_of_shards": 1,
+                "number_of_replicas": 0
+            },
+            "mappings": {
+                "properties": {
+                    "request_id": {"type": "keyword"},
+                    "session_id": {"type": "keyword"},
+                    "user_id": {"type": "keyword"},
+                    "timestamp": {"type": "date"},
+                    "model": {"type": "keyword"},
+                    "prompt_tokens": {"type": "integer"},
+                    "completion_tokens": {"type": "integer"},
+                    "total_tokens": {"type": "integer"},
+                    "response_time_ms": {"type": "float"},
+                    "status": {"type": "keyword"},
+                    "endpoint": {"type": "keyword"}
+                }
             }
         }
-    }
-
-    try:
-        exists = await opensearch_client.indices.exists(index=index_name_tokens)
-        if not exists:
-            await opensearch_client.indices.create(index=index_name_tokens, body=mapping_tokens)
-            print(f"Index '{index_name_tokens}' created with mapping.")
+        if not await opensearch_client.indices.exists(index="token_usage"):
+            print("Creating index: token_usage")
+            await opensearch_client.indices.create(index="token_usage", body=settings_tokens)
         else:
-            print(f"Index '{index_name_tokens}' already exists.")
+            print("Index token_usage already exists.")
+            
+        # 3. Init prompt_evaluations
+        settings_evals = {
+            "settings": {
+                "number_of_shards": 1,
+                "number_of_replicas": 0
+            },
+            "mappings": {
+                "properties": {
+                    "eval_id": {"type": "keyword"},
+                    "prompt_version": {"type": "keyword"},
+                    "user_input": {"type": "text"},
+                    "system_prompt": {"type": "text"},
+                    "ai_response": {"type": "text"},
+                    "model": {"type": "keyword"},
+                    "response_time_ms": {"type": "float"},
+                    "total_tokens": {"type": "integer"},
+                    "score": {"type": "integer"},       # 1-5 score, 0 if unevaluated
+                    "comment": {"type": "text"},      # Human evaluation comment
+                    "timestamp": {"type": "date"}
+                }
+            }
+        }
+        if not await opensearch_client.indices.exists(index="prompt_evaluations"):
+            print("Creating index: prompt_evaluations")
+            await opensearch_client.indices.create(index="prompt_evaluations", body=settings_evals)
+        else:
+            print("Index prompt_evaluations already exists.")
+
     except Exception as e:
-        print(f"Error initializing index '{index_name_tokens}': {e}")
+        print(f"Error initializing OpenSearch indices: {e}")
 
 
 
@@ -1377,7 +1414,7 @@ async def summarize_simple(
 
 @app.get("/api/dashboard/summary")
 async def dashboard_summary(
-    time_range: str = Query("24h", regex="^(24h|7d|30d)$"),
+    time_range: str = Query("24h", pattern="^(24h|7d|30d|60d|90d)$"),
     model: Optional[str] = None
 ):
     try:
@@ -1579,7 +1616,7 @@ async def dashboard_summary(
 
 @app.get("/api/dashboard/timeseries")
 async def dashboard_timeseries(
-    time_range: str = Query("24h", regex="^(24h|7d|30d)$")
+    time_range: str = Query("24h", pattern="^(24h|7d|30d|60d|90d)$")
 ):
     try:
         # Auto-reconnect if needed
@@ -1717,96 +1754,10 @@ async def dashboard_timeseries(
     }
 
 
-# ==============================
-# User Dashboard Endpoints & Simulation
-# ==============================
-
-ADMIN_EMAILS = ["admin@example.com", "debug@example.com", "root@localhost"]
-
-class LoginRequest(BaseModel):
-    email: str
-
-@app.post("/api/auth/login")
-async def login(req: LoginRequest):
-    """
-    Simulated login.
-    If email in ADMIN_EMAILS -> role=admin
-    Else -> role=user
-    """
-    role = "admin" if req.email in ADMIN_EMAILS else "user"
-    # In a real app, we'd issue a JWT. Here we just return the identity.
-    return {
-        "user_id": req.email,
-        "role": role,
-        "token": "simulated-token"
-    }
-
-@app.get("/api/user/summary")
-async def user_dashboard_summary(
-    x_user_id: Optional[str] = Header(None, alias="X-User-ID"),
-    time_range: str = Query("24h", regex="^(24h|7d|30d)$")
-):
-    # STUBBED: Returning empty summary to prevent errors
-    return {
-        "total_messages": 0,
-        "sessions": 0,
-        "response_time_p50_ms": 0,
-        "error_count": 0,
-        "user_id": x_user_id
-    }
-
-@app.get("/api/user/activity")
-async def user_activity(
-    x_user_id: Optional[str] = Header(None, alias="X-User-ID"),
-    limit: int = 10
-):
-    # STUBBED: Returning empty activity list to prevent errors
-    return []
-
-
-# ==============================
-# Token Usage Statistics API
-# ==============================
-
-# ==============================
-# Dashboard Summary & Timeseries API
-# ==============================
-
-@app.get("/api/dashboard/summary")
-async def dashboard_summary(
-    time_range: str = Query("24h", regex="^(24h|7d|30d)$")
-):
-    """Get dashboard summary metrics"""
-    # STUB: Return safe defaults for now to fix connection error
-    return {
-        "total_messages": 0,
-        "active_users": 0,
-        "sessions": 0,
-        "response_time_p50_ms": 0,
-        "response_time_p95_ms": 0,
-        "error_count": 0,
-        "error_rate_pct": 0,
-        "top_users": [],
-        "top_models": [],
-        "anonymous_messages": 0,
-        "anonymous_rate_pct": 0
-    }
-
-@app.get("/api/dashboard/timeseries")
-async def dashboard_timeseries(
-    time_range: str = Query("24h", regex="^(24h|7d|30d)$")
-):
-    """Get dashboard timeseries data"""
-    # STUB: Return safe defaults
-    return {
-        "messages_over_time": [],
-        "response_time_over_time": [],
-        "errors_over_time": []
-    }
 
 @app.get("/api/dashboard/token-usage")
 async def dashboard_token_usage(
-    time_range: str = Query("24h", regex="^(24h|7d|30d)$")
+    time_range: str = Query("24h", pattern="^(24h|7d|30d|60d|90d)$")
 ):
     """Get token usage statistics"""
     try:
@@ -1828,8 +1779,12 @@ async def dashboard_token_usage(
         gte = "now-24h"
     elif time_range == "7d":
         gte = "now-7d"
-    else:
+    elif time_range == "30d":
         gte = "now-30d"
+    elif time_range == "60d":
+        gte = "now-60d"
+    else:
+        gte = "now-90d"
     
     query_body = {
         "size": 0,
@@ -1904,7 +1859,6 @@ async def dashboard_token_usage(
             "tokens_by_model": [],
             "tokens_by_provider": []
         }
-
 
 # ==============================
 # 8) AI Insights API
@@ -2158,8 +2112,182 @@ async def admin_insights():
 # Uvicorn entrypoint
 # ==============================
 
+# ==============================
+# 9) Prompt Evaluation API (A/B Testing)
+# ==============================
+
+class PromptEvalRequest(BaseModel):
+    prompt_version: str # e.g. "v1_polite", "v2_expert"
+    system_prompt: str # The actual prompt text to test
+    user_input: str
+    model: Optional[str] = "google/gemma-3-27b-it:free"
+
+class PromptScoreRequest(BaseModel):
+    eval_id: str
+    score: int # 1-5
+    comment: Optional[str] = ""
+
+@app.post("/eval/prompt")
+async def evaluate_prompt(
+    request: PromptEvalRequest,
+    creds: Optional[HTTPAuthorizationCredentials] = Depends(security)
+):
+    """
+    Test a specific system prompt version and log the result to OpenSearch.
+    """
+    api_key = resolve_openrouter_key(creds)
+    eval_id = str(uuid.uuid4())
+    start_time = time.time()
+    
+    messages = [
+        {"role": "system", "content": request.system_prompt},
+        {"role": "user", "content": request.user_input}
+    ]
+    
+    payload = {
+        "model": request.model,
+        "messages": messages,
+        "stream": False,
+    }
+    
+    try:
+        async with httpx.AsyncClient(timeout=60) as client:
+            response = await client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+            )
+            
+        end_time = time.time()
+        duration_ms = (end_time - start_time) * 1000.0
+            
+        if response.status_code != 200:
+            return {"success": False, "error": response.text}
+            
+        data = response.json()
+        ai_response = data["choices"][0]["message"]["content"]
+        usage = data.get("usage", {})
+        total_tokens = usage.get("total_tokens", 0)
+        
+        # Log to OpenSearch
+        if opensearch_client:
+            try:
+                doc = {
+                    "eval_id": eval_id,
+                    "prompt_version": request.prompt_version,
+                    "user_input": request.user_input,
+                    "system_prompt": request.system_prompt,
+                    "ai_response": ai_response,
+                    "model": data.get("model", request.model),
+                    "response_time_ms": duration_ms,
+                    "total_tokens": total_tokens,
+                    "score": 0, # Not evaluated yet
+                    "comment": "",
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+                await opensearch_client.index(index="prompt_evaluations", id=eval_id, body=doc)
+            except Exception as os_err:
+                print(f"Warning: Failed to log evaluation to OpenSearch: {os_err}")
+            
+        return {
+            "success": True,
+            "eval_id": eval_id,
+            "response": ai_response,
+            "duration_ms": duration_ms,
+            "tokens": total_tokens
+        }
+        
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+@app.post("/eval/score")
+async def score_prompt_evaluation(
+    request: PromptScoreRequest,
+    creds: Optional[HTTPAuthorizationCredentials] = Depends(security)
+):
+    """
+    Assign a score (1-5) and comment to a previous prompt test.
+    """
+    if not opensearch_client:
+        return {"success": True, "message": "OpenSearch not connected (score ignored in dev)"}
+        
+    try:
+        # Update specific doc in OpenSearch
+        response = await opensearch_client.update(
+            index="prompt_evaluations",
+            id=request.eval_id,
+            body={
+                "doc": {
+                    "score": request.score,
+                    "comment": request.comment
+                }
+            }
+        )
+        return {"success": True, "message": "Score updated successfully"}
+    except Exception as e:
+        # Ignore in dev mode so it doesn't break the UI
+        print(f"Warning: Failed to update score in OpenSearch: {e}")
+        return {"success": True, "message": "Score update simulated (OpenSearch failed)"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+@app.get("/eval/results")
+async def get_prompt_evaluation_results(
+    creds: Optional[HTTPAuthorizationCredentials] = Depends(security)
+):
+    """
+    Aggregate and compare results for different prompt versions.
+    """
+    if not opensearch_client:
+        return {"success": False, "error": "OpenSearch not connected"}
+        
+    try:
+        # Aggregate by prompt_version
+        query = {
+            "size": 0,
+            "aggs": {
+                "by_version": {
+                    "terms": {
+                        "field": "prompt_version",
+                        "size": 10
+                    },
+                    "aggs": {
+                        "avg_score": { "avg": { "field": "score" } },
+                        "avg_time_ms": { "avg": { "field": "response_time_ms" } },
+                        "avg_tokens": { "avg": { "field": "total_tokens" } },
+                        "tested_count": { "value_count": { "field": "eval_id" } },
+                        "scored_count": { 
+                            "filter": { "range": { "score": { "gt": 0 } } }
+                        }
+                    }
+                }
+            }
+        }
+        
+        res = await opensearch_client.search(index="prompt_evaluations", body=query)
+        buckets = res.get("aggregations", {}).get("by_version", {}).get("buckets", [])
+        
+        results = []
+        for b in buckets:
+            results.append({
+                "version": b["key"],
+                "total_tests": b["doc_count"],
+                "scored_tests": b["scored_count"]["doc_count"],
+                "average_score": round(b["avg_score"]["value"] or 0, 2),
+                "average_time_ms": round(b["avg_time_ms"]["value"] or 0, 2),
+                "average_tokens": round(b["avg_tokens"]["value"] or 0, 2)
+            })
+            
+        return {"success": True, "data": results}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
 if __name__ == "__main__":
     import uvicorn
 
-    port = int(os.environ.get("PORT", 10000))
+    port = int(os.environ.get("PORT", 10001))
     uvicorn.run(app, host="0.0.0.0", port=port)

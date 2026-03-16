@@ -64,21 +64,24 @@ const ChatArea = ({
 
     return (
         <div className="main-content">
-            <div className="chat-header">
-                <div className="header-left">
-                    <i className="fas fa-bars" id="mobile-menu-btn" onClick={onToggleSidebar}></i>
-                    <span>ABDUL Chat</span>
-                </div>
-                <div className="header-right">
-                    <ExportButton messages={messages} chatId={currentChatId} />
+            <div className="chat-header" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                    <div className="header-left">
+                        <i className="fas fa-bars" id="mobile-menu-btn" onClick={onToggleSidebar}></i>
+                        <span>ABDUL Chat</span>
+                    </div>
+                    <div className="header-right" style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
 
 
-                    <button className="summary-btn-primary" title="สรุปบทสนทนานี้คุยเรื่องอะไร" onClick={onSummarize}>
-                        <i className="fas fa-list"></i>
-                        <span>สรุปแชทนี้</span>
-                    </button>
-                    {/* Share button can be added later */}
+                        <ExportButton messages={messages} chatId={currentChatId} />
+
+                        <button className="summary-btn-primary" title="สรุปบทสนทนานี้คุยเรื่องอะไร" onClick={onSummarize}>
+                            <i className="fas fa-list"></i>
+                            <span>สรุปแชทนี้</span>
+                        </button>
+                    </div>
                 </div>
+
             </div>
 
             <div className="chat-container" id="chat-container" ref={chatContainerRef}>

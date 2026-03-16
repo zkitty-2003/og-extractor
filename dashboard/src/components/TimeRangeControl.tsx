@@ -11,6 +11,7 @@ export function TimeRangeControl({ value, onChange }: TimeRangeControlProps) {
         { label: '24h', value: '24h' },
         { label: '7d', value: '7d' },
         { label: '30d', value: '30d' },
+        { label: '60d', value: '60d' },
     ];
 
     return (

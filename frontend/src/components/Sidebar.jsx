@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 const Sidebar = ({
     history,
@@ -14,6 +14,11 @@ const Sidebar = ({
     onToggleImageMode // passed function to toggle image mode
 }) => {
     const [activeMenuId, setActiveMenuId] = useState(null);
+    const [imgError, setImgError] = useState(false);
+
+    useEffect(() => {
+        setImgError(false);
+    }, [currentUser]);
 
     const toggleMenu = (e, id) => {
         e.stopPropagation();
@@ -66,7 +71,19 @@ const Sidebar = ({
             <div className="sidebar-bottom">
                 {currentUser ? (
                     <div className="user-profile" onClick={onLoginClick}>
-                        <img className="avatar" src={currentUser.picture} alt="User Avatar" style={{ width: '30px', height: '30px', borderRadius: '2px' }} />
+                        {currentUser.picture && !imgError ? (
+                            <img
+                                className="avatar"
+                                src={currentUser.picture}
+                                alt="User Avatar"
+                                style={{ width: '30px', height: '30px', borderRadius: '2px' }}
+                                onError={() => setImgError(true)}
+                            />
+                        ) : (
+                            <div className="avatar" style={{ width: '30px', height: '30px', borderRadius: '2px', backgroundColor: 'var(--accent-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '14px', color: 'white' }}>
+                                {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : (currentUser.email ? currentUser.email.charAt(0).toUpperCase() : '?')}
+                            </div>
+                        )}
                         <div className="user-info">
                             <span style={{ fontWeight: 'bold', fontSize: '0.9rem', display: 'block' }}>{currentUser.name}</span>
                             <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>{currentUser.email}</span>
