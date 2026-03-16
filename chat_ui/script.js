@@ -271,213 +271,7 @@ function handleLogout() {
     location.reload();
 }
 
-// --- OpenRouter Settings Logic ---
-let openRouterModels = [];
-let selectedModel = localStorage.getItem('openrouter_model') || '';
 
-function renderOpenRouterSettings() {
-    const container = document.getElementById('settings-container-mount');
-    if (!container) return;
-
-    const currentKey = apiKey; // Global apiKey variable
-    const isLoading = container.dataset.loading === 'true';
-    const statusMsg = container.dataset.status || '';
-    const statusType = container.dataset.statusType || 'default';
-
-    // Filter models
-    const searchTerm = (container.dataset.search || '').toLowerCase();
-    const filteredModels = openRouterModels.filter(m =>
-        m.id.toLowerCase().includes(searchTerm) ||
-        (m.name && m.name.toLowerCase().includes(searchTerm))
-    );
-
-    let modelsHtml = '';
-    if (openRouterModels.length > 0) {
-        modelsHtml = `
-            <div class="models-container">
-                <div class="form-group">
-                    <label class="form-label">Select Model</label>
-                    <div class="input-with-icon" style="margin-bottom: 10px;">
-                        <i class="fas fa-search input-icon-left"></i>
-                        <input type="text" id="model-search" class="settings-input with-left-icon" 
-                               placeholder="Filter models..." value="${escapeHtml(searchTerm)}">
-                    </div>
-                    <select id="model-select" class="settings-input" style="cursor: pointer;">
-                        <option value="">-- Choose a Model --</option>
-                        ${filteredModels.map(m => `
-                            <option value="${m.id}" ${m.id === selectedModel ? 'selected' : ''}>
-                                ${m.id} (${m.pricing?.prompt === "0" ? 'Free' : 'Paid'})
-                            </option>
-                        `).join('')}
-                    </select>
-                </div>
-            </div>
-        `;
-    }
-
-    container.innerHTML = `
-        <div class="settings-card">
-            <div class="settings-header">
-                <h2><i class="fas fa-robot"></i> OpenRouter Settings</h2>
-            </div>
-
-            <div class="form-group">
-                <label class="form-label">API Key</label>
-                <div class="input-with-icon">
-                    <input type="password" id="or-api-key" class="settings-input" 
-                           placeholder="sk-or-..." value="${escapeHtml(currentKey)}">
-                    <button id="toggle-key-btn" class="toggle-visibility-btn">
-                        <i class="fas fa-eye"></i>
-                    </button>
-                </div>
-            </div>
-
-            <button id="fetch-models-btn" class="action-btn btn-secondary" ${!currentKey ? 'disabled' : ''}>
-                ${isLoading ? '<i class="fas fa-circle-notch fa-spin"></i> Loading...' : '<i class="fas fa-sync-alt"></i> Load Models'}
-            </button>
-
-            ${modelsHtml}
-
-            <div style="display: flex; gap: 15px; margin-top: 25px;">
-                <button id="save-settings-btn" class="action-btn btn-primary">
-                    <i class="fas fa-save"></i> Save
-                </button>
-                <button id="clear-settings-btn" class="action-btn btn-danger" style="width: auto;">
-                    <i class="fas fa-trash-alt"></i>
-                </button>
-            </div>
-
-            ${statusMsg ? `
-                <div style="text-align: center;">
-                    <div class="status-badge ${statusType === 'error' ? 'status-error' : 'status-success'}">
-                        <i class="fas ${statusType === 'error' ? 'fa-exclamation-circle' : 'fa-check-circle'}"></i>
-                        ${statusMsg}
-                    </div>
-                </div>
-            ` : ''}
-        </div>
-    `;
-
-    // Attach Events
-    document.getElementById('save-settings-btn').addEventListener('click', handleSaveSettings);
-    document.getElementById('clear-settings-btn').addEventListener('click', handleClearSettings);
-    document.getElementById('fetch-models-btn').addEventListener('click', () => fetchModels(document.getElementById('or-api-key').value));
-
-    const keyInput = document.getElementById('or-api-key');
-    keyInput.addEventListener('input', (e) => {
-        document.getElementById('fetch-models-btn').disabled = !e.target.value;
-    });
-
-    // Toggle Key Visibility
-    document.getElementById('toggle-key-btn').addEventListener('click', (e) => {
-        const type = keyInput.getAttribute('type') === 'password' ? 'text' : 'password';
-        keyInput.setAttribute('type', type);
-        e.currentTarget.innerHTML = `<i class="fas fa-eye${type === 'password' ? '' : '-slash'}"></i>`;
-    });
-
-    if (openRouterModels.length > 0) {
-        document.getElementById('model-search').addEventListener('input', (e) => {
-            container.dataset.search = e.target.value;
-            renderOpenRouterSettings(); // Re-render to filter
-            // Restore focus
-            const newInput = document.getElementById('model-search');
-            newInput.focus();
-            newInput.setSelectionRange(newInput.value.length, newInput.value.length);
-        });
-
-        document.getElementById('model-select').addEventListener('change', (e) => {
-            selectedModel = e.target.value;
-        });
-    }
-}
-
-function handleSaveSettings() {
-    const key = document.getElementById('or-api-key').value.trim();
-    if (!key) {
-        showStatus('Please enter an API Key', 'error');
-        return;
-    }
-
-    // Update Globals
-    apiKey = key;
-    const modelSelect = document.getElementById('model-select');
-    if (modelSelect) selectedModel = modelSelect.value;
-
-    // Persist
-    localStorage.setItem('openrouter_api_key', apiKey);
-    localStorage.setItem('openrouter_model', selectedModel);
-
-    showStatus('Settings saved!', 'success');
-
-    // Auto fetch if models missing
-    if (openRouterModels.length === 0) {
-        fetchModels(apiKey);
-    }
-}
-
-function handleClearSettings() {
-    localStorage.removeItem('openrouter_api_key');
-    localStorage.removeItem('openrouter_model');
-    apiKey = '';
-    selectedModel = '';
-    openRouterModels = [];
-
-    const container = document.getElementById('settings-container-mount');
-    container.dataset.search = '';
-
-    renderOpenRouterSettings();
-    showStatus('Settings cleared.', 'success');
-}
-
-function showStatus(msg, type) {
-    const container = document.getElementById('settings-container-mount');
-    container.dataset.status = msg;
-    container.dataset.statusType = type;
-    renderOpenRouterSettings();
-
-    setTimeout(() => {
-        container.dataset.status = '';
-        renderOpenRouterSettings();
-    }, 3000);
-}
-
-async function fetchModels(key) {
-    const container = document.getElementById('settings-container-mount');
-    container.dataset.loading = 'true';
-    renderOpenRouterSettings();
-
-    try {
-        const response = await fetch('https://openrouter.ai/api/v1/models', {
-            headers: {
-                'Authorization': `Bearer ${key}`,
-                'HTTP-Referer': window.location.origin
-            }
-        });
-
-        if (response.ok) {
-            const data = await response.json();
-            openRouterModels = data.data.sort((a, b) => a.id.localeCompare(b.id));
-            container.dataset.loading = 'false';
-            renderOpenRouterSettings();
-            showStatus('Models loaded successfully', 'success');
-        } else {
-            throw new Error('Failed to fetch models');
-        }
-    } catch (e) {
-        console.error(e);
-        container.dataset.loading = 'false';
-        showStatus('Failed to load models', 'error');
-        renderOpenRouterSettings();
-    }
-}
-
-// Hook into Login Open to Render Settings
-const originalOpenLoginOverlay = window.openLoginOverlay;
-window.openLoginOverlay = function () {
-    originalOpenLoginOverlay();
-    // Render settings after a slight delay to ensure DOM is ready/visible
-    setTimeout(renderOpenRouterSettings, 50);
-};
 
 // --- Chat History Logic ---
 const LAST_SESSION_KEY = 'last_session_summary';
@@ -917,6 +711,7 @@ async function sendMessage() {
     contentDiv.innerHTML = '<i class="fas fa-ellipsis-h fa-fade"></i>';
 
     try {
+        if (isImageMode) {
             // --- Image Generation Flow ---
             contentDiv.textContent = "Translating prompt...";
 
@@ -1088,6 +883,7 @@ function startNewChat() {
         window.toggleImageMode(false);
     }
 }
+window.startNewChat = startNewChat;
 
 // Helper to escape HTML to prevent XSS, but allow line breaks
 function escapeHtml(text) {
@@ -1334,7 +1130,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // ========================================
 // Export Chat to Excel Function
 // ========================================
-function exportChatToExcel() {
+window.exportChatToExcel = function() {
     if (!chatHistory || chatHistory.length === 0) {
         alert('ไม่มีข้อความให้ส่งออก / No messages to export');
         return;
@@ -1382,7 +1178,7 @@ function exportChatToExcel() {
 }
 
 // ฟังก์ชันช่วยจัดรูปแบบ timestamp
-function formatTimestampForExcel(timestamp) {
+window.formatTimestampForExcel = function(timestamp) {
     const date = timestamp instanceof Date ? timestamp : new Date(timestamp || Date.now());
 
     if (isNaN(date.getTime())) {
