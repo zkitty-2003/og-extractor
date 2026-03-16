@@ -36,18 +36,25 @@ from opensearchpy.exceptions import NotFoundError
 
 app = FastAPI()
 
-# Mount frontend static files
+# Mount frontend static files (HTML Version)
 app.mount("/static", StaticFiles(directory="chat_ui"), name="static")
 
-# Mount Dashboard UI (Production only, if directory exists)
-if os.path.exists("dashboard_dist"):
-    app.mount("/dashboard-ui", StaticFiles(directory="dashboard_dist", html=True), name="dashboard")
-    print("✅ Dashboard UI mounted at /dashboard-ui")
-
+# Serve the "Normal" HTML Chat UI at /ui
 @app.get("/ui")
 async def serve_ui():
     from fastapi.responses import FileResponse
     return FileResponse("chat_ui/index.html")
+
+# Mount Dashboard UI at /dashboard-ui
+if os.path.exists("dashboard_dist"):
+    app.mount("/dashboard-ui", StaticFiles(directory="dashboard_dist", html=True), name="dashboard")
+    print("✅ Dashboard UI mounted at /dashboard-ui")
+
+# Mount React App at root /
+# This should be LAST so it doesn't shadow the other routes
+if os.path.exists("dist"):
+    app.mount("/", StaticFiles(directory="dist", html=True), name="react_app")
+    print("✅ React App mounted at /")
 
 @app.get("/dashboard")
 async def redirect_dashboard():

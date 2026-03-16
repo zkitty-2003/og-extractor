@@ -7,6 +7,7 @@ let chatHistory = []; // Current chat messages
 let apiKey = localStorage.getItem('openrouter_api_key') || '';
 let currentChatId = null; // ID of the current active chat session
 let isBusy = false; // Flag to prevent multiple requests
+let selectedFile = null; // Store the currently selected file for attachment
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -126,6 +127,45 @@ document.addEventListener('DOMContentLoaded', () => {
     const shareId = urlParams.get('share');
     if (shareId) {
         loadSharedChat(shareId);
+    }
+
+    // Attachment Button Handlers
+    const attachmentBtn = document.getElementById('attachment-btn');
+    const fileInput = document.getElementById('file-input');
+
+    if (attachmentBtn && fileInput) {
+        attachmentBtn.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            // Check file type
+            if (!file.type.match('application/pdf') && !file.type.match('text/plain')) {
+                alert('กรุณาเลือกไฟล์ PDF หรือ Text เท่านั้นครับ');
+                fileInput.value = '';
+                return;
+            }
+
+            // Read file as Base64
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                selectedFile = {
+                    name: file.name,
+                    type: file.type,
+                    data: event.target.result.split(',')[1] // Get Base64 part
+                };
+                console.log("File selected:", selectedFile.name);
+                
+                // Change button style to indicate attachment
+                attachmentBtn.innerHTML = '<i class="fas fa-file-pdf"></i>';
+                attachmentBtn.style.color = '#ff4b2b';
+                attachmentBtn.title = `แนบไฟล์แล้ว: ${file.name} (คลิกเพื่อเปลี่ยน)`;
+            };
+            reader.readAsDataURL(file);
+        });
     }
 });
 
@@ -698,7 +738,8 @@ async function sendMessage() {
     setBusyState(true);
 
     // Add User Message
-    appendMessage(text, 'user', null, [], true);
+    const displayText = selectedFile ? `[แนบไฟล์: ${selectedFile.name}]\n${text}` : text;
+    appendMessage(displayText, 'user', null, [], true);
     messageInput.value = '';
 
     // Create AI Message Placeholder
@@ -785,7 +826,8 @@ async function sendMessage() {
                     user_email: currentUser ? currentUser.email : null,
                     user_avatar: currentUser ? currentUser.picture : null,
                     history: chatHistory.map(msg => ({ role: msg.role, content: msg.content })),
-                    model: selectedModel || "google/gemma-3-27b-it:free"
+                    model: selectedModel || "google/gemma-3-27b-it:free",
+                    file: selectedFile // ✅ Attach the file if exists
                 })
             });
 
@@ -797,6 +839,17 @@ async function sendMessage() {
             const data = await response.json();
 
             if (data.success) {
+                // Clear attachment after sending
+                selectedFile = null;
+                const attachmentBtn = document.getElementById('attachment-btn');
+                if (attachmentBtn) {
+                    attachmentBtn.innerHTML = '<i class="fas fa-paperclip"></i>';
+                    attachmentBtn.style.color = '';
+                    attachmentBtn.title = 'แนบไฟล์ (PDF/Text)';
+                }
+                const fileInput = document.getElementById('file-input');
+                if (fileInput) fileInput.value = '';
+
                 const aiMessage = data.data.message;
                 const images = data.data.images || [];
                 aiMsgElement.remove();
