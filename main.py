@@ -505,6 +505,23 @@ async def root():
     }
 
 
+@app.get("/health")
+async def health_check():
+    """Health check endpoint สำหรับตรวจสอบสถานะของระบบ"""
+    opensearch_status = "disconnected"
+    if opensearch_client:
+        try:
+            if await opensearch_client.ping():
+                opensearch_status = "connected"
+        except Exception:
+            opensearch_status = "error"
+    return {
+        "status": "ok",
+        "service": "og-extractor",
+        "opensearch": opensearch_status,
+    }
+
+
 # ==============================
 # 1) OG Extractor
 # ==============================
@@ -524,7 +541,7 @@ async def extract_og(data: ExtractRequest):
     }
 
     try:
-        async with httpx.AsyncClient(follow_redirects=True, verify=False) as client:
+        async with httpx.AsyncClient(follow_redirects=True, verify=True) as client:
             response = await client.get(url, headers=headers, timeout=10)
             response.raise_for_status()
     except httpx.HTTPStatusError as e:
