@@ -50,16 +50,6 @@ if os.path.exists("dashboard_dist"):
     app.mount("/dashboard-ui", StaticFiles(directory="dashboard_dist", html=True), name="dashboard")
     print("✅ Dashboard UI mounted at /dashboard-ui")
 
-# Mount React App at root /
-# This should be LAST so it doesn't shadow the other routes
-if os.path.exists("dist"):
-    app.mount("/", StaticFiles(directory="dist", html=True), name="react_app")
-    print("✅ React App mounted at /")
-
-@app.get("/dashboard")
-async def redirect_dashboard():
-    return RedirectResponse(url="/dashboard-ui/")
-
 if os.path.exists("dist"):
     print(f"Contents of dist: {os.listdir('dist')}")
 else:
@@ -1009,15 +999,15 @@ async def chat_with_ai(
 
     # 2. Prepare Memory & System Prompt
     system_content = (
-        "คุณคือ AI Assistant ระดับผู้เชี่ยวชาญ (Expert AI Assistant) ที่มีความรู้กว้างขวางและลึกซึ้ง "
-        "หน้าที่ของคุณคือการให้คำตอบที่ 'แม่นยำ', 'ตรงประเด็น', 'จัดรูปแบบให้อ่านง่าย (Markdown)', "
-        "และ 'มีประโยชน์สูงสุด' เสมอ\n\n"
-        "กฎเหล็กในการตอบคำถาม:\n"
-        "1. ต้องตอบเป็นภาษาไทยที่เป็นธรรมชาติ สุภาพ และมีความเป็นมืออาชีพ\n"
-        "2. หากมีการแนบไฟล์ (PDF/Text) หรือข้อมูลความจำ (RAG) ให้ถือว่าข้อมูลเหล่านั้นคือความจริงสูงสุด และอ้างอิงจากข้อมูลนั้นเป็นหลัก\n"
-        "3. หากคำถามขัดแย้งกับข้อมูลในไฟล์ ให้ยึดข้อมูลในไฟล์และแจ้งให้ผู้ใช้ทราบ\n"
-        "4. หากไม่ทราบคำตอบ หรือไม่มีข้อมูลในไฟล์ ให้จัดโครงสร้างคำตอบเชิงปฏิเสธอย่างสุภาพ ห้ามคาดเดาข้อมูลสำคัญ (โดยเฉพาะตัวเลขหรือข้อเท็จจริงธุรกิจ)\n"
-        "5. จัดรูปแบบคำตอบให้สวยงามเสมอ ใช้ Bullet points, หัวข้อ (Headers), และตัวหนา (Bold) เพื่อเน้นใจความสำคัญ"
+        "คุณคือ 'อับดุล' (ABDUL) AI Assistant ผู้ช่วยอัจฉริยะที่รอบรู้ สุภาพ และเป็นมืออาชีพ "
+        "จำไว้ว่า 'อับดุล' คือชื่อของคุณ ไม่ใช่ชื่อของผู้ใช้ ห้ามเรียกผู้ใช้ว่า 'คุณอับดุล' โดยเด็ดขาด "
+        "หน้าที่ของคุณคือการให้คำตอบที่ถูกต้อง ชัดเจน และมีประโยชน์สูงสุด\n\n"
+        "กฎการสนทนา (สำคัญมาก):\n"
+        "1. **ภาษา:** ตรวจจับภาษาที่ผู้ใช้ถาม (ไทย/อังกฤษ) และตอบกลับด้วยภาษานั้นเสมอ ห้ามสลับภาษาเอง\n"
+        "2. **ตัวตน:** ห้ามทักทายผู้ใช้ด้วยชื่อ (เช่น Castell หรือชื่ออื่นๆ) นอกจากผู้ใช้จะแนะนำตัวในแชทนี้เท่านั้น หากไม่ทราบชื่อให้ทักทายแบบทั่วไป เช่น 'สวัสดีค่ะ' หรือ 'สวัสดีครับ'\n"
+        "3. **ข้อมูลอ้างอิง:** หากมีการแนบไฟล์หรือความจำสำรอง (RAG) ให้ใช้ข้อมูลนั้นเป็นฐานความจริงหลักในการตอบ\n"
+        "4. **การจัดรูปแบบ:** ใช้ Markdown ให้สวยงาม มีหัวข้อ (Headers) และ Bullet points ทำให้อ่านง่ายเสมอ\n"
+        "5. **ความจริงใจ:** ถ้าไม่ทราบคำตอบหรือไม่ข้อมูลในไฟล์ ให้บอกตามตรงอย่างสุภาพ ห้ามเดาข้อมูลเท็จ"
     )
 
     # Parse document file if not an image
@@ -1145,25 +1135,11 @@ async def chat_with_ai(
              return {"success": False, "error": error_txt}
 
         data = response.json()
-        draft_message = data["choices"][0]["message"]["content"]
+        ai_message = data["choices"][0]["message"]["content"]
         
-        # ✅ STEP 4: Self-Correction (New Step)
+        # ✅ Performance Fix: Removed slow Self-Correction (Critic) step.
         print("\n" + "-"*30)
-        print("[DRAFT CREATED]")
-        print(draft_message[:100] + "...")
-        print("-" * 30)
-        
-        ai_message = await _evaluate_and_refine(
-            draft=draft_message, 
-            original_prompt=request.message, 
-            api_key=api_key, 
-            model=data.get("model", use_model),
-            context=system_content,
-            chat_history=messages
-        )
-        
-        print("\n" + "-"*30)
-        print("[REFINED RESPONSE READY]")
+        print(f"[RESPONSE READY] Duration: {duration_ms:.2f}ms")
         print(ai_message[:100] + "...")
         print("-" * 30 + "\n")
         
@@ -1277,16 +1253,27 @@ async def _analyze_chat_logic(
         role_th = "User" if m.get("role") == "user" else "AI"
         conversation_text += f"{role_th}: {m.get('content', '')}\n"
 
-    system_prompt = (
-        "You are a strict conversation summarizer.\n\n"
-        "LANGUAGE RULE: Detect the dominant language of the conversation.\n"
-        "- If Thai, summarize in THAI.\n"
-        "- If English, summarize in ENGLISH.\n\n"
-        "REQUIRED OUTPUT FORMAT:\n"
-        "Title: [Short title describing the main topic]\n"
-        "Summary: [2-4 sentences summarizing the key points]\n"
-        "Topics: [Keywords separated by commas]\n"
-    )
+    # Detect dominant language of conversation for the summary prompt
+    thai_char_count = sum(1 for m in trimmed for c in m.get("content", "") if '\u0e00' <= c <= '\u0e7f')
+    total_char_count = sum(len(m.get("content", "")) for m in trimmed)
+    is_thai_dominant = total_char_count > 0 and (thai_char_count / total_char_count) > 0.1
+
+    if is_thai_dominant:
+        system_prompt = (
+            "คุณคือผู้สรุปบทสนทนาที่เชี่ยวชาญ บทสนทนานี้เป็นภาษาไทย ให้สรุปเป็นภาษาไทยเท่านั้น ห้ามใช้ภาษาอังกฤษโดยเด็ดขาด\n\n"
+            "รูปแบบผลลัพธ์ที่ต้องการ:\n"
+            "Title: [หัวข้อสั้นๆ อธิบายเรื่องหลัก]\n"
+            "Summary: [สรุป 2-4 ประโยค]\n"
+            "Topics: [คำค้นหาสำคัญ คั่นด้วยจุลภาค]\n"
+        )
+    else:
+        system_prompt = (
+            "You are a strict conversation summarizer. Detect the dominant language and summarize in that language.\n\n"
+            "REQUIRED OUTPUT FORMAT:\n"
+            "Title: [Short title describing the main topic]\n"
+            "Summary: [2-4 sentences summarizing the key points]\n"
+            "Topics: [Keywords separated by commas]\n"
+        )
     
     final_user_content = f"Conversation to summarize:\n{conversation_text}"
 
@@ -2320,6 +2307,16 @@ async def get_prompt_evaluation_results(
     except Exception as e:
         return {"success": False, "error": str(e)}
 
+
+# ⚠️ IMPORTANT: This mount MUST be last — it shadows all routes under /
+# Placing it here ensures all @app.post() / @app.get() handlers are registered first.
+@app.get("/dashboard")
+async def redirect_dashboard():
+    return RedirectResponse(url="/dashboard-ui/")
+
+if os.path.exists("dist"):
+    app.mount("/", StaticFiles(directory="dist", html=True), name="react_app")
+    print("✅ React App mounted at /")
 
 if __name__ == "__main__":
     import uvicorn
