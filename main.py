@@ -18,6 +18,7 @@ if os.path.exists(".env"):
 load_success = load_dotenv(override=True)
 print(f"DEBUG: .env loaded successfully = {load_success}")
 print(f"DEBUG: OPENSEARCH_URL from env = {os.environ.get('OPENSEARCH_URL', 'NOT_FOUND')[:30]}...")
+print(f"DEBUG: OPENROUTER_API_KEY exists = {bool(os.environ.get('OPENROUTER_API_KEY'))}")
 
 from typing import Optional, List, Dict, Any, Tuple
 from bs4 import BeautifulSoup
@@ -797,6 +798,8 @@ async def _translate_logic(text: str, api_key: str) -> Tuple[str, List[str]]:
 
     models = [
         "google/gemma-3-27b-it:free",
+        "google/gemini-2.0-flash-lite-preview-02-05:free",
+        "google/gemma-2-9b-it:free",
     ]
 
     errors: List[str] = []

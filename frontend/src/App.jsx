@@ -232,26 +232,53 @@ function App() {
       if (isImageMode) {
         // ===== Image Generation Flow =====
         let prompt = text;
+        let translationError = null;
 
         if (/[\u0E00-\u0E7F]/.test(text)) {
           try {
+            console.log('Translating prompt:', text);
             const res = await translatePrompt(text, token);
             if (res.data && res.data.english) {
               prompt = res.data.english;
+              console.log('Translated to:', prompt);
             }
           } catch (e) {
             console.error('Translation failed', e);
+            translationError = e.message;
           }
         }
 
         const encodedPrompt = encodeURIComponent(prompt);
-        const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}`;
+        // Add cache busting and specific dimensions if needed
+        const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true&seed=${Math.floor(Math.random() * 1000000)}`;
+
+        console.log('Generating image with URL:', imageUrl);
 
         const img = new Image();
+        
+        // Timeout for image load (15 seconds)
+        const loadTimeout = setTimeout(() => {
+            img.src = "";
+            handleImageError("Image generation timed out. Pollinations.ai might be overloaded.");
+        }, 15000);
+
+        const handleImageError = (errorMsg) => {
+            clearTimeout(loadTimeout);
+            const aiMsg = { 
+                role: 'assistant', 
+                content: errorMsg || 'Failed to generate image. Please try a different prompt.' 
+            };
+            const finalMessages = [...newMessages, aiMsg];
+            setMessages(finalMessages);
+            updateHistory(finalMessages);
+            setIsBusy(false);
+        };
+
         img.onload = () => {
+          clearTimeout(loadTimeout);
           const aiMsg = {
             role: 'assistant',
-            content: `Generated image for: "${text}"`,
+            content: `Generated image for: "${text}"${prompt !== text ? ` (Translated as: "${prompt}")` : ''}`,
             images: [imageUrl],
           };
           const finalMessages = [...newMessages, aiMsg];
@@ -259,17 +286,15 @@ function App() {
           updateHistory(finalMessages);
           setIsBusy(false);
         };
-        img.onerror = () => {
-          const aiMsg = { role: 'assistant', content: 'Failed to generate image.' };
-          const finalMessages = [...newMessages, aiMsg];
-          setMessages(finalMessages);
-          updateHistory(finalMessages);
-          setIsBusy(false);
-        };
-        img.src = imageUrl;
 
-      } else {
-        // ===== Text Chat Flow =====
+        img.onerror = () => {
+          handleImageError(translationError ? `Translation failed (${translationError}). Please try English prompts.` : null);
+        };
+
+        img.src = imageUrl;
+        return;
+      }
+      // ===== Text Chat Flow =====
         const historyForApi = newMessages.map((m) => ({
           role: m.role,
           content: m.content,
