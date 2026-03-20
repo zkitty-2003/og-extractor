@@ -56,6 +56,9 @@ POSSIBLE_DB_DIRS = [
     os.path.join(BASE_DIR, "dashboard-dist"),         # Alternative common naming
 ]
 
+# React App (Frontend) config
+REACT_APP_PATH = os.path.join(BASE_DIR, "dist")
+
 DB_DIR = None
 for d in POSSIBLE_DB_DIRS:
     if os.path.exists(d):
