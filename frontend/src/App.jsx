@@ -258,19 +258,10 @@ function App() {
         
         const handleImageError = (errorMsg) => {
             clearTimeout(loadTimeout);
+            const displayError = errorMsg || 'Failed to generate image. Pollinations.ai might be offline or blocked.';
             const aiMsg = { 
                 role: 'assistant', 
-                content: (
-                    <div>
-                        <p>{errorMsg || 'Failed to generate image. Pollinations.ai might be offline or blocked.'}</p>
-                        <p style={{ fontSize: '0.8em', opacity: 0.7, marginTop: '5px' }}>
-                            Prompt: {prompt} <br/>
-                            <a href={imageUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#aaa', textDecoration: 'underline' }}>
-                                Try opening image URL directly
-                            </a>
-                        </p>
-                    </div>
-                )
+                content: `${displayError}\n\n**Prompt:** ${prompt}\n\n[Try opening image URL directly](${imageUrl})`
             };
             const finalMessages = [...newMessages, aiMsg];
             setMessages(finalMessages);
