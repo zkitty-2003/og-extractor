@@ -22,7 +22,7 @@ export default function App() {
     return (
         <ErrorBoundary>
             <AuthProvider>
-                <BrowserRouter>
+                <BrowserRouter basename="/dashboard-ui">
                     <Routes>
                         {/* Default to Admin Dashboard */}
                         <Route path="/" element={<Navigate to="/admin" replace />} />

@@ -109,18 +109,33 @@ app.add_middleware(
 @app.get("/debug-db")
 async def debug_db():
     import os
-    db_path = os.path.join(os.getcwd(), "dashboard", "dist", "index.html")
-    exists = os.path.exists(db_path)
-    content = ""
-    if exists:
-        with open(db_path, "r", encoding="utf-8") as f:
-            content = f.read(100)
-    return {
+    results = {
         "cwd": os.getcwd(),
-        "db_path": db_path,
-        "exists": exists,
-        "content_peek": content
+        "listing": os.listdir(os.getcwd()),
+        "checks": {}
     }
+    
+    paths_to_check = [
+        os.path.join(os.getcwd(), "dist", "index.html"),
+        os.path.join(os.getcwd(), "dashboard_dist", "index.html"),
+        os.path.join(os.getcwd(), "dashboard", "dist", "index.html"),
+    ]
+    
+    for p in paths_to_check:
+        exists = os.path.exists(p)
+        content_peek = ""
+        if exists:
+            try:
+                with open(p, "r", encoding="utf-8") as f:
+                    content_peek = f.read(200)
+            except:
+                content_peek = "error reading"
+        results["checks"][p] = {
+            "exists": exists,
+            "peek": content_peek
+        }
+        
+    return results
 
 
 def build_opensearch_client():
