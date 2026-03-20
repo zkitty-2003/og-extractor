@@ -39,9 +39,9 @@ app = FastAPI()
 # Mount frontend static files (HTML Version)
 app.mount("/static", StaticFiles(directory="chat_ui"), name="static")
 
-# Serve the "Normal" HTML Chat UI at /ui
-@app.get("/ui")
-async def serve_ui():
+# Serve the old "Static HTML" Chat UI at /old-ui (legacy)
+@app.get("/old-ui")
+async def serve_old_ui():
     from fastapi.responses import FileResponse
     return FileResponse("chat_ui/index.html")
 
@@ -561,10 +561,23 @@ async def search_user_memory(user_email: str) -> Optional[str]:
 
 @app.get("/")
 async def root():
+    # If the React app exists, redirect to it (it's mounted at / anyway, but just in case)
+    if os.path.exists(CHAT_APP_PATH):
+        from fastapi.responses import FileResponse
+        return FileResponse(os.path.join(CHAT_APP_PATH, "index.html"))
+    
     return {
         "message": "OG Extractor & Chat API is running (Backend Only)",
-        "endpoints": ["/extract", "/chat", "/docs", "/summary", "/chat/summary"],
+        "endpoints": ["/extract", "/chat", "/docs", "/dashboard-ui", "/ui"],
     }
+
+@app.get("/ui")
+async def serve_react_ui_shorthand():
+    # Make /ui also serve the React app for convenience
+    if os.path.exists(CHAT_APP_PATH):
+        from fastapi.responses import FileResponse
+        return FileResponse(os.path.join(CHAT_APP_PATH, "index.html"))
+    return RedirectResponse(url="/old-ui")
 
 
 @app.get("/health")
