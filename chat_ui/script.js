@@ -8,6 +8,7 @@ let apiKey = localStorage.getItem('openrouter_api_key') || '';
 let currentChatId = null; // ID of the current active chat session
 let isBusy = false; // Flag to prevent multiple requests
 let selectedFile = null; // Store the currently selected file for attachment
+let selectedModel = localStorage.getItem('openrouter_model') || 'google/gemma-3-27b-it:free';
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
