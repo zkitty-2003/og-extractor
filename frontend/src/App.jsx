@@ -238,9 +238,12 @@ function App() {
           try {
             console.log('Translating prompt:', text);
             const res = await translatePrompt(text, token);
-            if (res.data && res.data.english) {
+            if (res.data && res.data.success) {
               prompt = res.data.english;
               console.log('Translated to:', prompt);
+            } else {
+              console.warn('Translation failed according to API:', res.data.debug);
+              translationError = 'Translation model could not produce English output.';
             }
           } catch (e) {
             console.error('Translation failed', e);

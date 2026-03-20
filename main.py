@@ -30,6 +30,7 @@ import base64
 import io
 import time
 from pypdf import PdfReader
+import re
 
 # OpenSearch
 from opensearchpy import AsyncOpenSearch
@@ -797,8 +798,9 @@ async def _translate_logic(text: str, api_key: str) -> Tuple[str, List[str]]:
     """
 
     models = [
-        "google/gemma-3-27b-it:free",
+        "google/gemini-2.0-flash-exp:free",
         "google/gemini-2.0-flash-lite-preview-02-05:free",
+        "google/gemma-3-27b-it:free",
         "google/gemma-2-9b-it:free",
     ]
 
@@ -807,27 +809,20 @@ async def _translate_logic(text: str, api_key: str) -> Tuple[str, List[str]]:
     if not text or not text.strip():
         return "", errors
 
-    async with httpx.AsyncClient(timeout=60) as client:
+    async with httpx.AsyncClient(timeout=30) as client:
         for model in models:
             try:
+                print(f"DEBUG: Trying translation model: {model}")
                 payload = {
                     "model": model,
                     "messages": [
                         {
+                            "role": "system",
+                            "content": "You are a translation engine. Translate Thai image prompts to English. Output ONLY the English translation. No chat, no quotes, no explanations."
+                        },
+                        {
                             "role": "user",
-                            "content": (
-                                "You are a strict translation engine for image prompts.\n\n"
-                                "Input: Thai text describing an image.\n"
-                                "Output: SHORT English image prompt only.\n\n"
-                                "Rules:\n"
-                                "- English only\n"
-                                "- No Thai\n"
-                                "- No explanation\n"
-                                "- No quotes\n"
-                                "- 5–20 words\n"
-                                "- Concise and visual\n"
-                                "\nInput: " + text
-                            ),
+                            "content": text
                         }
                     ],
                 }
@@ -837,8 +832,7 @@ async def _translate_logic(text: str, api_key: str) -> Tuple[str, List[str]]:
                     headers={
                         "Authorization": f"Bearer {api_key}",
                         "Content-Type": "application/json",
-                        "HTTP-Referer": "https://og-extractor-zxkk.onrender.com",
-                        "X-Title": "FastAPI Translation API",
+                        "X-Title": "ABDUL Chat Translation",
                     },
                     json=payload,
                 )
@@ -847,21 +841,23 @@ async def _translate_logic(text: str, api_key: str) -> Tuple[str, List[str]]:
                     data = response.json()
                     if data.get("choices"):
                         content = data["choices"][0]["message"]["content"].strip()
-                        if content:
+                        # Check if it actually returned English (simple check: no Thai characters)
+                        if content and not re.search(r'[\u0E00-\u0E7F]', content):
+                            print(f"✅ Translation success with {model}: {content}")
                             return content, errors
-
-                error_msg = (
-                    f"Model {model} failed: {response.status_code} - "
-                    f"{response.text[:200]}"
-                )
-                errors.append(error_msg)
+                        else:
+                            print(f"⚠️ Model {model} returned invalid or Thai content: {content}")
+                            errors.append(f"Model {model} returned invalid content")
+                else:
+                    print(f"❌ Model {model} failed with status {response.status_code}")
+                    errors.append(f"Model {model} status {response.status_code}")
 
             except Exception as e:
-                error_msg = f"Model {model} exception: {str(e)}"
-                errors.append(error_msg)
+                print(f"❌ Model {model} exception: {str(e)}")
+                errors.append(f"Model {model} exception: {str(e)}")
 
-    # All models failed → return original text
-    return text, errors
+    # All models failed → return None to signify failure
+    return None, errors
 
 
 # ------------------------------
@@ -888,10 +884,10 @@ async def translate_text(
         )
 
         return {
-            "english": english_text,
+            "success": english_text is not None,
+            "english": english_text if english_text else request.text,
             "debug": debug_info,
-            # 👇 build tag เอาไว้เช็กว่าเข้าโค้ดนี้จริง
-            "build": "translate-v2-gemma-only",
+            "build": "translate-v3-gemini-first",
         }
 
     except HTTPException:
