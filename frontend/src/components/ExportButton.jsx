@@ -9,7 +9,6 @@ const ExportButton = ({ messages, chatId }) => {
     const handleExport = async () => {
         setIsExporting(true);
         try {
-            await new Promise(resolve => setTimeout(resolve, 500));
             const { exportChatToExcel } = await import('../utils/exportChat');
             exportChatToExcel(messages, chatId);
         } catch (error) {
