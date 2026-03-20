@@ -249,8 +249,8 @@ function App() {
         }
 
         const encodedPrompt = encodeURIComponent(prompt);
-        // Add cache busting and specific dimensions if needed
-        const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true&seed=${Math.floor(Math.random() * 1000000)}`;
+        // Simplified URL to be more robust
+        const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?nologo=true&seed=${Math.floor(Math.random() * 1000000)}`;
 
         console.log('Generating image with URL:', imageUrl);
 
@@ -260,7 +260,17 @@ function App() {
             clearTimeout(loadTimeout);
             const aiMsg = { 
                 role: 'assistant', 
-                content: errorMsg || 'Failed to generate image. Please try a different prompt.' 
+                content: (
+                    <div>
+                        <p>{errorMsg || 'Failed to generate image. Pollinations.ai might be offline or blocked.'}</p>
+                        <p style={{ fontSize: '0.8em', opacity: 0.7, marginTop: '5px' }}>
+                            Prompt: {prompt} <br/>
+                            <a href={imageUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#aaa', textDecoration: 'underline' }}>
+                                Try opening image URL directly
+                            </a>
+                        </p>
+                    </div>
+                )
             };
             const finalMessages = [...newMessages, aiMsg];
             setMessages(finalMessages);
