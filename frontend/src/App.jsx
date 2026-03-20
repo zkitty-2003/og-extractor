@@ -256,12 +256,6 @@ function App() {
 
         const img = new Image();
         
-        // Timeout for image load (15 seconds)
-        const loadTimeout = setTimeout(() => {
-            img.src = "";
-            handleImageError("Image generation timed out. Pollinations.ai might be overloaded.");
-        }, 15000);
-
         const handleImageError = (errorMsg) => {
             clearTimeout(loadTimeout);
             const aiMsg = { 
@@ -273,6 +267,12 @@ function App() {
             updateHistory(finalMessages);
             setIsBusy(false);
         };
+
+        // Timeout for image load (15 seconds)
+        const loadTimeout = setTimeout(() => {
+            img.src = "";
+            handleImageError("Image generation timed out. Pollinations.ai might be overloaded.");
+        }, 15000);
 
         img.onload = () => {
           clearTimeout(loadTimeout);
@@ -326,8 +326,7 @@ function App() {
         }
 
         setIsBusy(false);
-      }
-    } catch (error) {
+      } catch (error) {
       console.error(error);
       const errorMsg = { role: 'assistant', content: `Error: ${error.message}` };
       const finalMessages = [...newMessages, errorMsg];
