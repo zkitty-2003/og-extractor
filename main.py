@@ -45,15 +45,49 @@ async def serve_ui():
     from fastapi.responses import FileResponse
     return FileResponse("chat_ui/index.html")
 
-# Mount Dashboard UI at /dashboard-ui
-if os.path.exists("dashboard_dist"):
-    app.mount("/dashboard-ui", StaticFiles(directory="dashboard_dist", html=True), name="dashboard")
-    print("✅ Dashboard UI mounted at /dashboard-ui")
+# Dashboard Configuration (Moved to Top for Priority)
+BASE_DIR = os.getcwd()
 
-if os.path.exists("dist"):
-    print(f"Contents of dist: {os.listdir('dist')}")
+# Possible locations for dashboard dist (to support both Docker production and local Dev)
+POSSIBLE_DB_DIRS = [
+    os.path.join(BASE_DIR, "dashboard", "dist"),      # Local development (default)
+    os.path.join(BASE_DIR, "dashboard_dist"),         # Docker production (from Dockerfile)
+    os.path.join(BASE_DIR, "dist_dashboard"),         # Alternative common naming
+    os.path.join(BASE_DIR, "dashboard-dist"),         # Alternative common naming
+]
+
+DB_DIR = None
+for d in POSSIBLE_DB_DIRS:
+    if os.path.exists(d):
+        DB_DIR = d
+        print(f"✅ Found Dashboard UI at: {d}")
+        break
+
+if DB_DIR:
+    @app.get("/dashboard")
+    async def redirect_dashboard():
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url="/dashboard-ui/")
+
+    @app.get("/dashboard-ui/")
+    async def serve_dashboard_root():
+        from fastapi.responses import FileResponse
+        return FileResponse(os.path.join(DB_DIR, "index.html"))
+
+    @app.get("/dashboard-ui/{path:path}")
+    async def serve_dashboard_spa(path: str):
+        from fastapi.responses import FileResponse
+        target = os.path.join(DB_DIR, path)
+        if os.path.isfile(target):
+            return FileResponse(target)
+        # SPA routing: return index.html for all non-file paths
+        return FileResponse(os.path.join(DB_DIR, "index.html"))
+
+    # Also mount it as StaticFiles for static assets (js, css, etc.)
+    app.mount("/dashboard-ui", StaticFiles(directory=DB_DIR, html=True), name="dashboard")
+    print(f"✅ Dashboard UI mounted at /dashboard-ui (using: {DB_DIR})")
 else:
-    print("INFO: 'dist' directory not found — skipping dist file mount (dev mode OK)")
+    print(f"⚠️ Dashboard UI directory NOT FOUND in any of: {POSSIBLE_DB_DIRS}")
 
 security = HTTPBearer(auto_error=False)
 
@@ -68,6 +102,22 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/debug-db")
+async def debug_db():
+    import os
+    db_path = os.path.join(os.getcwd(), "dashboard", "dist", "index.html")
+    exists = os.path.exists(db_path)
+    content = ""
+    if exists:
+        with open(db_path, "r", encoding="utf-8") as f:
+            content = f.read(100)
+    return {
+        "cwd": os.getcwd(),
+        "db_path": db_path,
+        "exists": exists,
+        "content_peek": content
+    }
 
 
 def build_opensearch_client():
@@ -2308,15 +2358,11 @@ async def get_prompt_evaluation_results(
         return {"success": False, "error": str(e)}
 
 
-# ⚠️ IMPORTANT: This mount MUST be last — it shadows all routes under /
-# Placing it here ensures all @app.post() / @app.get() handlers are registered first.
-@app.get("/dashboard")
-async def redirect_dashboard():
-    return RedirectResponse(url="/dashboard-ui/")
-
-if os.path.exists("dist"):
-    app.mount("/", StaticFiles(directory="dist", html=True), name="react_app")
-    print("✅ React App mounted at /")
+if os.path.exists(REACT_APP_PATH):
+    app.mount("/", StaticFiles(directory=REACT_APP_PATH, html=True), name="react_app")
+    print(f"✅ React App mounted at / (Path: {REACT_APP_PATH})")
+else:
+    print(f"INFO: React 'dist' not found at {REACT_APP_PATH} — skipping root mount (expected in dev)")
 
 if __name__ == "__main__":
     import uvicorn
