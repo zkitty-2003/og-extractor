@@ -1,4 +1,0 @@
-Method,Name,Error,Occurrences
-POST,/chat,CatchResponseError('Chat failed with status code: 0'),4
-GET,/,"ConnectionRefusedError(10061, '[WinError 10061] No connection could be made because the target machine actively refused it.')",4
-GET,/health,"ConnectionRefusedError(10061, '[WinError 10061] No connection could be made because the target machine actively refused it.')",2
