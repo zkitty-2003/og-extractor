@@ -35,9 +35,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy backend code
 COPY . .
 
-# Copy built frontend assets
-COPY --from=frontend-builder /frontend_build/dist ./dist
-COPY --from=dashboard-builder /dashboard_build/dist ./dashboard_dist
+# Copy built frontend assets to unique names
+COPY --from=frontend-builder /frontend_build/dist ./chat_build
+COPY --from=dashboard-builder /dashboard_build/dist ./dashboard_build
 
 # Change ownership of /app to appuser
 RUN chown -R appuser:appuser /app

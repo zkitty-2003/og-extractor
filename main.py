@@ -50,14 +50,17 @@ BASE_DIR = os.getcwd()
 
 # Possible locations for dashboard dist (to support both Docker production and local Dev)
 POSSIBLE_DB_DIRS = [
+    os.path.join(BASE_DIR, "dashboard_build"),         # Modern name (explicitly for prod)
     os.path.join(BASE_DIR, "dashboard", "dist"),      # Local development (default)
-    os.path.join(BASE_DIR, "dashboard_dist"),         # Docker production (from Dockerfile)
-    os.path.join(BASE_DIR, "dist_dashboard"),         # Alternative common naming
-    os.path.join(BASE_DIR, "dashboard-dist"),         # Alternative common naming
+    os.path.join(BASE_DIR, "dashboard_dist"),         # Older names (kept for safety)
 ]
 
-# React App (Frontend) config
-REACT_APP_PATH = os.path.join(BASE_DIR, "dist")
+# React App (Chat UI) config
+# We use a unique name specifically to avoid root-level 'dist' confusion
+CHAT_APP_PATH = os.environ.get("CHAT_APP_PATH", os.path.join(BASE_DIR, "chat_build"))
+if not os.path.exists(CHAT_APP_PATH):
+    # Fallback to 'dist' if chat_build not found
+    CHAT_APP_PATH = os.path.join(BASE_DIR, "dist")
 
 DB_DIR = None
 for d in POSSIBLE_DB_DIRS:
@@ -116,9 +119,10 @@ async def debug_db():
     }
     
     paths_to_check = [
+        os.path.join(os.getcwd(), "chat_build", "index.html"),
+        os.path.join(os.getcwd(), "dashboard_build", "index.html"),
         os.path.join(os.getcwd(), "dist", "index.html"),
         os.path.join(os.getcwd(), "dashboard_dist", "index.html"),
-        os.path.join(os.getcwd(), "dashboard", "dist", "index.html"),
     ]
     
     for p in paths_to_check:
@@ -2383,11 +2387,12 @@ async def get_prompt_evaluation_results(
         return {"success": False, "error": str(e)}
 
 
-if os.path.exists(REACT_APP_PATH):
-    app.mount("/", StaticFiles(directory=REACT_APP_PATH, html=True), name="react_app")
-    print(f"✅ React App mounted at / (Path: {REACT_APP_PATH})")
+# Mount React Chat App (built with 'frontend/' project) at root
+if os.path.exists(CHAT_APP_PATH):
+    app.mount("/", StaticFiles(directory=CHAT_APP_PATH, html=True), name="chat_app")
+    print(f"✅ Chat App mounted at / (Path: {CHAT_APP_PATH})")
 else:
-    print(f"INFO: React 'dist' not found at {REACT_APP_PATH} — skipping root mount (expected in dev)")
+    print(f"INFO: Chat App build not found at {CHAT_APP_PATH} — skipping root mount")
 
 if __name__ == "__main__":
     import uvicorn
