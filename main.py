@@ -622,25 +622,32 @@ async def extract_og(data: ExtractRequest):
 # 2) Simple Email Auth (Dashboard Login)
 # ==============================
 
-# Demo user list: email -> role mapping
-# Add more users here or replace with DB lookup
+# Dashboard user list: email -> {password, role}
 DASHBOARD_USERS = {
-    "admin@example.com": "admin",
-    "user@example.com": "user",
+    "siramol2546@gmail.com": {"password": "0989289666", "role": "admin"},
+    "admin@example.com": {"password": "admin", "role": "admin"}, # Keep for fallback/safety
 }
 
-class EmailLoginRequest(BaseModel):
+class LoginRequest(BaseModel):
     email: str
+    password: str
 
 @app.post("/api/auth/login")
-async def email_login(request: EmailLoginRequest):
+async def dashboard_login(request: LoginRequest):
     email = request.email.strip().lower()
-    role = DASHBOARD_USERS.get(email)
-    if not role:
-        raise HTTPException(status_code=401, detail="Email not authorized")
+    password = request.password
+    
+    user_info = DASHBOARD_USERS.get(email)
+    
+    if not user_info:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    
+    if user_info["password"] != password:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+        
     return {
         "user_id": email,
-        "role": role,
+        "role": user_info["role"],
     }
 
 

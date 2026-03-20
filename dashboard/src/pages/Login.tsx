@@ -10,6 +10,7 @@ import { AUTH_API_BASE } from "@/utils/apiConfig"
 
 export default function Login() {
     const [email, setEmail] = useState("")
+    const [password, setPassword] = useState("")
     const [error, setError] = useState("")
     const [loading, setLoading] = useState(false)
     const { login } = useAuth()
@@ -21,7 +22,7 @@ export default function Login() {
         setError("")
 
         try {
-            const res = await axios.post(`${AUTH_API_BASE}/login`, { email })
+            const res = await axios.post(`${AUTH_API_BASE}/login`, { email, password })
             const { user_id, role } = res.data
 
             login(user_id, role)
@@ -53,7 +54,7 @@ export default function Login() {
                         Sign in to Dashboard
                     </CardTitle>
                     <p className="text-sm text-slate-500">
-                        Enter your email to access your analytics
+                        Enter your credentials to access your analytics
                     </p>
                 </CardHeader>
                 <CardContent>
@@ -65,6 +66,16 @@ export default function Login() {
                                 required
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
+                            />
+                        </div>
+
+                        <div className="space-y-2">
+                            <Input
+                                type="password"
+                                placeholder="••••••••"
+                                required
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
                             />
                         </div>
 
@@ -82,11 +93,6 @@ export default function Login() {
                         >
                             {loading ? "Signing in..." : "Sign In"}
                         </Button>
-
-                        <div className="mt-4 text-center text-xs text-slate-400">
-                            <p>Demo Admin: admin@example.com</p>
-                            <p>Demo User: user@example.com</p>
-                        </div>
                     </form>
                 </CardContent>
             </Card>
