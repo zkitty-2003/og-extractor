@@ -798,10 +798,11 @@ async def _translate_logic(text: str, api_key: str) -> Tuple[str, List[str]]:
     """
 
     models = [
-        "google/gemini-2.0-flash-exp:free",
         "google/gemini-2.0-flash-lite-preview-02-05:free",
+        "meta-llama/llama-3.3-70b-instruct:free",
+        "qwen/qwen-2.5-coder-32b-instruct:free",
         "google/gemma-3-27b-it:free",
-        "google/gemma-2-9b-it:free",
+        "google/gemini-2.0-flash-exp:free"
     ]
 
     errors: List[str] = []
@@ -833,6 +834,7 @@ async def _translate_logic(text: str, api_key: str) -> Tuple[str, List[str]]:
                         "Authorization": f"Bearer {api_key}",
                         "Content-Type": "application/json",
                         "X-Title": "ABDUL Chat Translation",
+                        "HTTP-Referer": "http://localhost:3000",
                     },
                     json=payload,
                 )

@@ -252,8 +252,8 @@ function App() {
         }
 
         const encodedPrompt = encodeURIComponent(prompt);
-        // Simplified URL to be more robust
-        const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?nologo=true&seed=${Math.floor(Math.random() * 1000000)}`;
+        // Simplified URL to be more robust. Updated to pollinations.ai/prompt/ to avoid 403 forbidden.
+        const imageUrl = `https://pollinations.ai/prompt/${encodedPrompt}?nologo=true&seed=${Math.floor(Math.random() * 1000000)}`;
 
         console.log('Generating image with URL:', imageUrl);
 
