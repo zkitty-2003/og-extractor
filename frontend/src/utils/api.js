@@ -101,4 +101,13 @@ export const scorePrompt = async (evalId, score, comment, token) => {
     );
 };
 
+export const shareChat = async (messages) => {
+    return api.post(
+        '/share',
+        {
+            messages: messages
+        }
+    );
+};
+
 export default api;

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Message from './Message';
 import ExportButton from './ExportButton';
+import { shareChat } from '../utils/api';
 
 
 const ChatArea = ({
@@ -60,6 +61,34 @@ const ChatArea = ({
         }
     };
 
+    const handleShare = async () => {
+        if (!messages || messages.length === 0) {
+            alert("ไม่มีข้อความให้แชร์ครับ");
+            return;
+        }
+        // Change text button to loading
+        const btn = document.getElementById('share-btn-chatarea');
+        if(btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>กำลังแชร์...</span>';
+        }
+        try {
+            const response = await shareChat(messages);
+            const shareId = response.data.id;
+            const shareUrl = `${window.location.origin}${window.location.pathname}?share=${shareId}`;
+            await navigator.clipboard.writeText(shareUrl);
+            alert("คัดลอกลิงก์แชร์เรียบร้อยแล้ว! ส่งให้เพื่อนได้เลย\n\n" + shareUrl);
+        } catch (error) {
+            console.error("Error sharing chat:", error);
+            alert("แชร์แชทล้มเหลว กรุณาลองใหม่");
+        } finally {
+            if(btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-share-alt"></i><span>แชร์แชท</span>';
+            }
+        }
+    };
+
 
 
     return (
@@ -70,10 +99,15 @@ const ChatArea = ({
                         <i className="fas fa-bars" id="mobile-menu-btn" onClick={onToggleSidebar}></i>
                         <span>ABDUL Chat</span>
                     </div>
-                    <div className="header-right" style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                    <div className="header-right" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
 
 
                         <ExportButton messages={messages} chatId={currentChatId} />
+
+                        <button id="share-btn-chatarea" className="summary-btn-primary" style={{ background: '#4CAF50' }} title="แชร์แชทนี้ให้ผู้อื่น" onClick={handleShare}>
+                            <i className="fas fa-share-alt"></i>
+                            <span>แชร์แชท</span>
+                        </button>
 
                         <button className="summary-btn-primary" title="สรุปบทสนทนานี้คุยเรื่องอะไร" onClick={onSummarize}>
                             <i className="fas fa-list"></i>
