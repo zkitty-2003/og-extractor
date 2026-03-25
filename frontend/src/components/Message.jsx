@@ -86,15 +86,34 @@ const Message = ({ message, currentUser }) => {
                         </>
                     )}
 
-                    {images && images.length > 0 && images.map((img, i) => (
-                        <img
-                            key={i}
-                            src={img}
-                            className="ai-image"
-                            alt="Generated"
-                            onClick={() => window.open(img, '_blank')}
-                        />
-                    ))}
+                    {images && images.length > 0 && images.map((imgUrl, i) => {
+                        // Ensure relative proxy URLs are pointed to the backend
+                        const backendBase = import.meta.env.PROD ? '' : 'http://localhost:10001';
+                        const finalSrc = imgUrl.startsWith('/proxy-image') ? `${backendBase}${imgUrl}` : imgUrl;
+                        
+                        const handleImageClick = (src) => {
+                            if (src.startsWith('data:')) {
+                                const newTab = window.open();
+                                if (newTab) {
+                                    newTab.document.write(`<img src="${src}" style="max-width:100%; height:auto;">`);
+                                    newTab.document.title = "Generated Image";
+                                }
+                            } else {
+                                window.open(src, '_blank');
+                            }
+                        };
+
+                        return (
+                            <img
+                                key={i}
+                                src={finalSrc}
+                                className="ai-image"
+                                alt="Generated"
+                                onClick={() => handleImageClick(finalSrc)}
+                                style={{ cursor: 'pointer' }}
+                            />
+                        );
+                    })}
 
                     {/* Prompt Evaluation UI */}
                     {message.evalData && (

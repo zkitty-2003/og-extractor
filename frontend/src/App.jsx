@@ -17,6 +17,8 @@ function App() {
 
   // ===== State =====
   const [currentUser, setCurrentUser] = useState(null);
+  const [openRouterKey, setOpenRouterKey] = useState(localStorage.getItem('openrouter_api_key') || '');
+  const [pollinationsKey, setPollinationsKey] = useState(localStorage.getItem('pollinations_api_key') || '');
   const [history, setHistory] = useState([]);
   const [messages, setMessages] = useState([]);
   const [currentChatId, setCurrentChatId] = useState(null);
@@ -24,6 +26,15 @@ function App() {
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
+
+  // Refresh keys when overlay closes
+  useEffect(() => {
+    if (!isLoginOpen) {
+      setOpenRouterKey(localStorage.getItem('openrouter_api_key') || '');
+      setPollinationsKey(localStorage.getItem('pollinations_api_key') || '');
+    }
+  }, [isLoginOpen]);
+
   const [isImageMode, setIsImageMode] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
 
@@ -251,14 +262,18 @@ function App() {
           }
         }
 
-        const encodedPrompt = encodeURIComponent(prompt);
-        // Simplified URL to be more robust. Updated to pollinations.ai/prompt/ to avoid 403 forbidden.
-        const imageUrl = `https://pollinations.ai/prompt/${encodedPrompt}?nologo=true&seed=${Math.floor(Math.random() * 1000000)}`;
-
-        console.log('Generating image with URL:', imageUrl);
-
-        const img = new Image();
+        const encodedPrompt = encodeURIComponent(prompt || text);
+        const seed = Math.floor(Math.random() * 1000000);
+        // Correct Pollinations v3 Pattern: gen.pollinations.ai/image/{prompt}
+        const pollUrl = pollinationsKey 
+            ? `https://gen.pollinations.ai/image/${encodedPrompt}?width=1024&height=1024&seed=${seed}&model=flux&nologo=true`
+            : `https://pollinations.ai/p/${encodedPrompt}?width=1024&height=1024&seed=${seed}&model=flux&nologo=true`;
         
+        // Use our own proxy endpoint with as_base64=true for absolute reliability
+        const backendBase = import.meta.env.PROD ? '' : 'http://localhost:10001';
+        let imageUrl = '';
+        const img = new Image();
+
         const handleImageError = (errorMsg) => {
             clearTimeout(loadTimeout);
             const displayError = errorMsg || 'Failed to generate image. Pollinations.ai might be offline or blocked.';
@@ -272,11 +287,32 @@ function App() {
             setIsBusy(false);
         };
 
-        // Timeout for image load (15 seconds)
+        // Timeout for image load (20 seconds)
         const loadTimeout = setTimeout(() => {
             img.src = "";
             handleImageError("Image generation timed out. Pollinations.ai might be overloaded.");
-        }, 15000);
+        }, 20000);
+
+        try {
+          // Add the key if user provided one
+          let finalUrl = pollUrl;
+          if (pollinationsKey) {
+            finalUrl += `&key=${pollinationsKey}`;
+          }
+          
+          const proxyRes = await fetch(`${backendBase}/proxy-image?as_base64=true&url=${encodeURIComponent(finalUrl)}`);
+          const proxyData = await proxyRes.json();
+          if (proxyData.data_url) {
+            imageUrl = proxyData.data_url;
+          } else {
+             throw new Error('Proxy failed to return image data');
+          }
+        } catch (err) {
+          console.error('Image proxy failed:', err);
+          handleImageError('Image generation failed (Backend Proxy Error).');
+          setIsBusy(false);
+          return;
+        }
 
         img.onload = () => {
           clearTimeout(loadTimeout);
@@ -316,7 +352,8 @@ function App() {
           historyForApi,
           getOpenRouterModel(), // ✅ Use selected model (or default)
           filePayload, // ✅ Pass the file payload
-          token
+          token,
+          pollinationsKey
         );
 
         if (res.data.success) {

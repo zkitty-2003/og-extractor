@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { googleLogin, fetchOpenRouterModels } from '../utils/api';
 import OpenRouterSettingsCard from './OpenRouterSettingsCard';
+import PollinationsSettingsCard from './PollinationsSettingsCard';
 
 const LoginOverlay = ({ isOpen, onClose, currentUser, onLogout, onLoginSuccess }) => {
     // OpenRouter State
@@ -11,6 +12,8 @@ const LoginOverlay = ({ isOpen, onClose, currentUser, onLogout, onLoginSuccess }
     const [modelSearch, setModelSearch] = useState('');
     const [isLoadingModels, setIsLoadingModels] = useState(false);
     const [statusMsg, setStatusMsg] = useState('');
+    const [pollinationsKey, setPollinationsKey] = useState('');
+    const [showPollinationsKey, setShowPollinationsKey] = useState(false);
 
     // Collapsible Settings State
     const [showSettings, setShowSettings] = useState(false);
@@ -25,8 +28,10 @@ const LoginOverlay = ({ isOpen, onClose, currentUser, onLogout, onLoginSuccess }
             // Load saved settings
             const savedKey = localStorage.getItem('openrouter_api_key') || '';
             const savedModel = localStorage.getItem('openrouter_model') || '';
+            const savedPollKey = localStorage.getItem('pollinations_api_key') || '';
             setApiKey(savedKey);
             setSelectedModel(savedModel);
+            setPollinationsKey(savedPollKey);
 
             // Re-render Google Button if needed
             if (!currentUser && window.google && window.google.accounts && window.google.accounts.id) {
@@ -100,10 +105,18 @@ const LoginOverlay = ({ isOpen, onClose, currentUser, onLogout, onLoginSuccess }
     const handleClearSettings = () => {
         localStorage.removeItem('openrouter_api_key');
         localStorage.removeItem('openrouter_model');
+        localStorage.removeItem('pollinations_api_key');
         setApiKey('');
         setSelectedModel('');
+        setPollinationsKey('');
         setModels([]);
         setStatusMsg('Settings cleared.');
+        setTimeout(() => setStatusMsg(''), 3000);
+    };
+
+    const handleSavePollinationsSettings = () => {
+        localStorage.setItem('pollinations_api_key', pollinationsKey);
+        setStatusMsg('Pollinations key saved!');
         setTimeout(() => setStatusMsg(''), 3000);
     };
 
@@ -174,6 +187,16 @@ const LoginOverlay = ({ isOpen, onClose, currentUser, onLogout, onLoginSuccess }
                                 handleFetchModels={handleFetchModels}
                                 handleSaveSettings={handleSaveSettings}
                                 handleClearSettings={handleClearSettings}
+                            />
+                            
+                            <PollinationsSettingsCard
+                                apiKey={pollinationsKey}
+                                setApiKey={setPollinationsKey}
+                                showKey={showPollinationsKey}
+                                setShowKey={setShowPollinationsKey}
+                                handleSaveSettings={handleSavePollinationsSettings}
+                                handleClearSettings={() => {}} 
+                                statusMsg={statusMsg}
                             />
                         </div>
                     </div>

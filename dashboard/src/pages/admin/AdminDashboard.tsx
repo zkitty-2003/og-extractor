@@ -109,6 +109,7 @@ export default function AdminDashboard() {
             ])
 
             setSummary(sumRes.data)
+            
             setTimeseries(tsRes.data)
             setTokenUsage(tokenRes.data)
             setInsights(insightRes.data)

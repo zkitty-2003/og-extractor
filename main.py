@@ -598,6 +598,69 @@ async def health_check():
         "opensearch": opensearch_status,
     }
 
+@app.get("/proxy-image")
+async def proxy_image(url: str, as_base64: bool = False):
+    """
+    Proxies an external image URL to bypass CORS and handle redirects to raw image data.
+    Optionally returns a Base64 data URL to absolute guarantee frontend display.
+    """
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "image/webp,image/apng,image/*,*/*;q=0.8",
+        }
+        # Disable SSL verification as pollinations.ai often has hostname mismatch issues
+        async with httpx.AsyncClient(follow_redirects=True, timeout=30, verify=False) as client:
+            response = await client.get(url, headers=headers)
+            if response.status_code == 200:
+                content_type = response.headers.get("Content-Type", "image/jpeg")
+                
+                # Check for HTML responses (Landing pages)
+                if "text/html" in content_type.lower():
+                    # If it's a small HTML page, it's probably an error or landing page
+                    if len(response.content) < 10000:
+                        raise HTTPException(status_code=400, detail="External provider returned a landing page instead of raw image data.")
+
+                if as_base64:
+                    import base64
+                    base64_data = base64.b64encode(response.content).decode("utf-8")
+                    return {"success": True, "data_url": f"data:{content_type};base64,{base64_data}"}
+                
+                return Response(content=response.content, media_type=content_type)
+            else:
+                 raise HTTPException(status_code=response.status_code, detail=f"Provider Error: {response.status_code}")
+    except Exception as e:
+        print(f"Proxy Image Error ({url}): {e}")
+        
+        # --- Fallback to Hercai (No-Auth Backup) ---
+        if "hercai.onrender.com" not in url:
+            try:
+                import urllib.parse
+                # Extract prompt from pollinations URL or original if possible (not easy here, but we can try simple)
+                # For simplicity, we fallback to a cat if prompt is hard to find, but we can try extraction
+                prompt_match = re.search(r'/(?:image|p|prompt)/([^?]+)', url)
+                fallback_prompt = prompt_match.group(1) if prompt_match else "cat"
+                hercai_url = f"https://hercai.onrender.com/v3/text2image?prompt={fallback_prompt}"
+                
+                print(f"🔄 Falling back to Hercai for: {fallback_prompt}")
+                async with httpx.AsyncClient(timeout=30, verify=False) as fallback_client:
+                    fb_res = await fallback_client.get(hercai_url)
+                    if fb_res.status_code == 200:
+                        fb_data = fb_res.json()
+                        fb_img_url = fb_data.get("url")
+                        # Fetch the actual image from Hercai Result
+                        img_res = await fallback_client.get(fb_img_url)
+                        if img_res.status_code == 200:
+                            if as_base64:
+                                import base64
+                                b64 = base64.b64encode(img_res.content).decode("utf-8")
+                                return {"success": True, "data_url": f"data:{img_res.headers.get('Content-Type', 'image/jpeg')};base64,{b64}"}
+                            return Response(content=img_res.content, media_type=img_res.headers.get("Content-Type", "image/jpeg"))
+            except Exception as fb_e:
+                 print(f"Hercai Fallback Error: {fb_e}")
+
+        raise HTTPException(status_code=500, detail=f"All image providers failed. Last error: {str(e)}")
+
 
 # ==============================
 # 1) OG Extractor
@@ -798,11 +861,10 @@ async def _translate_logic(text: str, api_key: str) -> Tuple[str, List[str]]:
     """
 
     models = [
+        "google/gemini-2.0-flash-exp:free",
         "google/gemini-2.0-flash-lite-preview-02-05:free",
-        "meta-llama/llama-3.3-70b-instruct:free",
-        "qwen/qwen-2.5-coder-32b-instruct:free",
         "google/gemma-3-27b-it:free",
-        "google/gemini-2.0-flash-exp:free"
+        "google/gemma-2-9b-it:free",
     ]
 
     errors: List[str] = []
@@ -819,7 +881,7 @@ async def _translate_logic(text: str, api_key: str) -> Tuple[str, List[str]]:
                     "messages": [
                         {
                             "role": "system",
-                            "content": "You are a translation engine. Translate Thai image prompts to English. Output ONLY the English translation. No chat, no quotes, no explanations."
+                            "content": "You are a translation engine. Translate Thai image prompts to English. Output ONLY the English translation. No chat, no quotes, no explanations. If prompt is already English, just return it as is."
                         },
                         {
                             "role": "user",
@@ -834,7 +896,6 @@ async def _translate_logic(text: str, api_key: str) -> Tuple[str, List[str]]:
                         "Authorization": f"Bearer {api_key}",
                         "Content-Type": "application/json",
                         "X-Title": "ABDUL Chat Translation",
-                        "HTTP-Referer": "http://localhost:3000",
                     },
                     json=payload,
                 )
@@ -843,6 +904,10 @@ async def _translate_logic(text: str, api_key: str) -> Tuple[str, List[str]]:
                     data = response.json()
                     if data.get("choices"):
                         content = data["choices"][0]["message"]["content"].strip()
+                        # Clean up some common AI artifacts
+                        content = content.replace("Translation:", "").replace("Direct translation:", "").strip()
+                        content = content.strip("\"'").strip()
+                        
                         # Check if it actually returned English (simple check: no Thai characters)
                         if content and not re.search(r'[\u0E00-\u0E7F]', content):
                             print(f"✅ Translation success with {model}: {content}")
@@ -857,6 +922,10 @@ async def _translate_logic(text: str, api_key: str) -> Tuple[str, List[str]]:
             except Exception as e:
                 print(f"❌ Model {model} exception: {str(e)}")
                 errors.append(f"Model {model} exception: {str(e)}")
+
+    # Final fallback: If all models fail but text is very short/ascii, just return original
+    if text and all(ord(c) < 128 for c in text):
+        return text, errors
 
     # All models failed → return None to signify failure
     return None, errors
@@ -905,12 +974,18 @@ async def translate_text(
 # 5) Chat API (Simplified)
 # ==============================
 
+class FilePayload(BaseModel):
+    name: str
+    type: str
+    data: str # Base64 data
+
 class ChatRequest(BaseModel):
     message: str
     model: Optional[str] = "google/gemma-3-27b-it:free"
     history: Optional[List[Dict[str, Any]]] = None
-    chat_id: Optional[str] = None
-    user_email: Optional[str] = None
+    file_payload: Optional[FilePayload] = None
+    token: Optional[str] = None
+    pollinations_key: Optional[str] = None
     user_avatar: Optional[str] = None
     file: Optional[Dict[str, str]] = None  # {name, type, data}
 
@@ -1071,24 +1146,43 @@ async def chat_with_ai(
         print(f"Detected image prompt: {request.message}")
         text_to_translate = request.message.strip()
         # Remove the command prefix for translation
+        original_prefix = ""
         for kw in ["/imagine", "/gen", "/image", "/img", "สร้างรูป", "วาดรูป", "generate image", "create image"]:
             if text_to_translate.lower().startswith(kw):
+                original_prefix = kw
                 text_to_translate = text_to_translate[len(kw):].strip()
                 break
 
         translated_text, logs = await _translate_logic(text_to_translate, api_key)
         
-        try:
-            return {
-               "success": True,
-               "data": {
-                   "message": translated_text,
-                   "images": [],
-                   "model": "google/gemma-3-27b-it:free",
-               },
-            }
-        except Exception as e:
-             return {"success": False, "error": str(e)}
+        # If translation failed, fallback to original text if it's usable
+        prompt_for_url = translated_text or text_to_translate
+        seed = int(time.time()) % 1000000
+        # Use newer pollination patterns
+        # Multi-Provider Fallback Logic
+        seed = int(time.time()) % 1000000
+        import urllib.parse
+        
+        # Correct Pollinations v3 Pattern: gen.pollinations.ai/image/{prompt}
+        poll_key = request.pollinations_key or ""
+        # If we have a key, we MUST use gen.pollinations.ai with the /image/ path as per v3 docs
+        if poll_key:
+            poll_url = f"https://gen.pollinations.ai/image/{urllib.parse.quote(prompt_for_url)}?width=1024&height=1024&seed={seed}&model=flux&nologo=true&key={poll_key}"
+        else:
+            # Public fallback (might return HTML landing page, handled by proxy)
+            poll_url = f"https://pollinations.ai/p/{urllib.parse.quote(prompt_for_url)}?width=1024&height=1024&seed={seed}&model=flux&nologo=true"
+            
+        # Return the proxied URL for the best results
+        image_url_generated = f"/proxy-image?url={urllib.parse.quote(poll_url)}"
+
+        return {
+           "success": True,
+           "data": {
+               "message": f"วาดรูปให้แล้วครับ: {text_to_translate} (แปลเป็น: {prompt_for_url})" if translated_text else f"วาดรูปให้แล้วครับ: {text_to_translate}",
+               "images": [image_url_generated],
+               "model": "pollinations/flux",
+           },
+        }
 
     # 2. Prepare Memory & System Prompt
     system_content = (
