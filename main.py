@@ -675,8 +675,9 @@ async def extract_og(data: ExtractRequest):
     url = str(data.url)
 
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-        "Accept": "*/*",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9,th;q=0.8",
         "Referer": "https://www.google.com/",
     }
 
@@ -698,12 +699,54 @@ async def extract_og(data: ExtractRequest):
     soup = BeautifulSoup(response.text, "html.parser")
 
     og_tags: Dict[str, str] = {}
-    for tag in soup.find_all("meta", property=True):
-        prop = tag.get("property")
-        if prop and prop.startswith("og:") and tag.get("content"):
+    for tag in soup.find_all("meta"):
+        # Check both 'property' and 'name' as some sites (like YouTube/Twitter) use both
+        prop = tag.get("property") or tag.get("name")
+        if prop and (prop.startswith("og:") or prop.startswith("twitter:")) and tag.get("content"):
             og_tags[prop] = tag["content"]
 
     page_title = soup.title.string.strip() if soup.title else None
+    
+    # --- YouTube Special Handling (Fallback) ---
+    if "youtube.com" in url or "youtu.be" in url:
+        print("DEBUG: Applying YouTube Special Handling")
+        # 1. Try to fix missing title if scraper got stuck on loading shell
+        if (not og_tags.get("og:title") or page_title == "- YouTube") and (not og_tags.get("og:image")):
+            video_id_match = re.search(r"v=([a-zA-Z0-9_-]+)", url)
+            if not video_id_match:
+                video_id_match = re.search(r"youtu\.be/([a-zA-Z0-9_-]+)", url)
+            
+            if video_id_match:
+                video_id = video_id_match.group(1)
+                print(f"DEBUG: Found YouTube Video ID: {video_id}")
+                
+                # Fallback Title from raw Regex if Soup failed (YouTube puts title in JS objects)
+                if not og_tags.get("og:title") or og_tags.get("og:title") == "Visit source":
+                    # Look for title in videoPrimaryInfoRenderer or similar JSON structures
+                    # Pattern 1: videoPrimaryInfoRenderer (Main Video Title)
+                    title_match = re.search(r'"videoPrimaryInfoRenderer":.*?"title":.*?"text":"(.+?)"', response.text)
+                    if not title_match:
+                        # Pattern 2: simpleText title
+                        title_match = re.search(r'"title":\{"simpleText":"(.+?)"\}', response.text)
+                    if not title_match:
+                        # Pattern 3: General title match (trying to avoid "Visit source")
+                        title_matches = re.finditer(r'"title":\{"runs":\[\{"text":"(.+?)"\}\]', response.text)
+                        for tm in title_matches:
+                            t = tm.group(1)
+                            if t and t not in ["Visit source", "YouTube", ""]:
+                                og_tags["og:title"] = t
+                                break
+                    
+                    if title_match and (not og_tags.get("og:title") or og_tags.get("og:title") == "Visit source"):
+                        og_tags["og:title"] = title_match.group(1)
+                
+                # Predictable Thumbnail URL (hqdefault is more reliable than maxresdefault)
+                if not og_tags.get("og:image"):
+                    og_tags["og:image"] = f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
+                
+                # Ensure something is in og:url
+                if not og_tags.get("og:url"):
+                    og_tags["og:url"] = f"https://www.youtube.com/watch?v={video_id}"
 
     return {
         "success": True,
@@ -987,6 +1030,8 @@ class ChatRequest(BaseModel):
     token: Optional[str] = None
     pollinations_key: Optional[str] = None
     user_avatar: Optional[str] = None
+    user_email: Optional[str] = None
+    chat_id: Optional[str] = None
     file: Optional[Dict[str, str]] = None  # {name, type, data}
 
 
